@@ -1,0 +1,27 @@
+[package]
+name = "pi-tui-app"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[features]
+feat-extensions = ["dep:pi-extension-system"]
+
+[dependencies]
+pi-tui-core = { path = "../pi-tui-core" }
+pi-ai-core = { path = "../pi-ai-core" }
+pi-agent-core = { path = "../pi-agent-core" }
+pi-core = { path = "../pi-core" }
+pi-model-catalog = { path = "../pi-model-catalog" }
+pi-cli = { path = "../pi-cli" }
+pi-provider-openai = { path = "../pi-provider-openai" }
+serde.workspace = true
+serde_json.workspace = true
+tracing.workspace = true
+thiserror.workspace = true
+notify.workspace = true
+tokio.workspace = true
+tokio-util.workspace = true
+tokio-stream = { workspace = true }
+unicode-width = "0.2"
+pi-extension-system = { path = "../pi-extension-system", optional = true }

@@ -1,0 +1,68 @@
+//! CLI argument parsing.
+//! Mirrors packages/coding-agent/src/cli/args.ts
+
+use clap::Parser;
+
+/// Pi Coding Agent — a self-extensible coding agent CLI.
+#[derive(Parser, Debug, Clone)]
+#[command(name = "pi", version, about)]
+pub struct Args {
+    /// Provider to use (e.g., "openai", "anthropic")
+    #[arg(long, short = 'p')]
+    pub provider: Option<String>,
+
+    /// Model to use
+    #[arg(long, short = 'm')]
+    pub model: Option<String>,
+
+    /// API key
+    #[arg(long)]
+    pub api_key: Option<String>,
+
+    /// Base URL for the API provider (for OpenAI-compatible endpoints)
+    #[arg(long)]
+    pub base_url: Option<String>,
+
+    /// System prompt
+    #[arg(long)]
+    pub system_prompt: Option<String>,
+
+    /// Enable thinking mode
+    #[arg(long)]
+    pub thinking: bool,
+
+    /// Interactive mode
+    #[arg(long)]
+    pub interactive: bool,
+
+    /// Print mode (single response to stdout)
+    #[arg(long)]
+    pub print: bool,
+
+    /// JSON output mode
+    #[arg(long)]
+    pub json: bool,
+
+    /// RPC mode
+    #[arg(long)]
+    pub rpc: bool,
+
+    /// List available models
+    #[arg(long, short = 'l')]
+    pub list_models: bool,
+
+    /// Session to resume
+    #[arg(long)]
+    pub session: Option<String>,
+
+    /// Fork the current session
+    #[arg(long)]
+    pub fork: bool,
+
+    /// Login to an OAuth provider ("anthropic", "github-copilot", "openai-codex")
+    #[arg(long, value_name = "PROVIDER")]
+    pub login: Option<String>,
+
+    /// The prompt to send
+    pub prompt: Vec<String>,
+}

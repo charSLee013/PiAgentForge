@@ -1,0 +1,10 @@
+[package]
+name = "pi-model-catalog"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+pi-ai-core = { path = "../pi-ai-core" }
+serde.workspace = true
+serde_json.workspace = true

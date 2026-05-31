@@ -7,6 +7,6 @@
 //! - [`server`] — RPC server loop (stdin/stdout protocol dispatcher)
 
 pub mod jsonl;
-mod runtime;
+pub mod runtime;
 pub mod server;
 pub mod types;

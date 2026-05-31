@@ -32,7 +32,7 @@ use super::types::{
 const COMPACTION_KEEP_RECENT_TOKENS: u64 = 512;
 
 #[derive(Clone)]
-pub(crate) struct RpcRuntime {
+pub struct RpcRuntime {
     shared: Arc<RpcRuntimeShared>,
 }
 
@@ -62,6 +62,18 @@ struct RpcRuntimeShared {
 }
 
 impl RpcRuntime {
+    pub async fn from_config_for_test(model: Model, session_dir: PathBuf, session_path: Option<PathBuf>) -> Self {
+        Self::from_config(RpcRuntimeConfig {
+            model,
+            system_prompt: None,
+            thinking_level: "off".to_string(),
+            session_dir,
+            session_path,
+        })
+        .await
+        .expect("test runtime should initialize")
+    }
+
     pub(crate) async fn from_environment() -> anyhow::Result<Self> {
         let settings = Settings::load().unwrap_or_else(|_| Settings {
             path: Settings::default_path(),
@@ -175,8 +187,23 @@ impl RpcRuntime {
         }
     }
 
+    pub async fn handle_command_for_test(&self, command: RpcCommand) -> RpcResponse {
+        self.handle_command(command).await
+    }
+
     #[cfg(test)]
     pub(crate) async fn wait_for_idle(&self, timeout: std::time::Duration) -> bool {
+        let deadline = std::time::Instant::now() + timeout;
+        while std::time::Instant::now() < deadline {
+            if !self.shared.is_streaming.load(Ordering::SeqCst) {
+                return true;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+        }
+        !self.shared.is_streaming.load(Ordering::SeqCst)
+    }
+
+    pub async fn wait_for_idle_for_test(&self, timeout: std::time::Duration) -> bool {
         let deadline = std::time::Instant::now() + timeout;
         while std::time::Instant::now() < deadline {
             if !self.shared.is_streaming.load(Ordering::SeqCst) {

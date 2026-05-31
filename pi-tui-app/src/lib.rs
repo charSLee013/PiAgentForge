@@ -5,6 +5,7 @@
 
 pub mod components;
 pub mod interactive_mode;
+pub mod test_support;
 pub mod theme;
 pub use interactive_mode::InteractiveMode;
 pub use theme::Theme;

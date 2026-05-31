@@ -432,6 +432,46 @@ impl InteractiveMode {
         self.tool_selection = selection;
     }
 
+    pub fn is_streaming_for_test(&self) -> bool {
+        self.is_streaming
+    }
+
+    pub fn session_for_test(&self) -> &SessionManager {
+        &self.session
+    }
+
+    pub fn session_for_test_mut(&mut self) -> &mut SessionManager {
+        &mut self.session
+    }
+
+    pub fn plan_mode_for_test(&self) -> bool {
+        self.plan_mode
+    }
+
+    pub fn has_pending_plan_for_test(&self) -> bool {
+        self.pending_plan.is_some()
+    }
+
+    pub fn latest_assistant_text_for_test(&self) -> Option<String> {
+        self.latest_assistant_text()
+    }
+
+    pub async fn run_subagent_command_for_test(&mut self, spec: Option<&str>) -> io::Result<String> {
+        self.run_subagent_command(spec).await
+    }
+
+    pub fn set_editor_text_for_test(&mut self, text: &str) {
+        self.editor.set_text(text);
+    }
+
+    pub async fn send_message_for_test(&mut self) {
+        self.send_message().await;
+    }
+
+    pub async fn poll_background_run_for_test(&mut self) -> bool {
+        self.poll_background_run().await
+    }
+
     /// Run the main event loop.
     ///
     /// 1. Enables raw mode on the terminal.

@@ -21,11 +21,7 @@ pub struct Box {
 
 impl Box {
     pub fn new(padding_x: u16, padding_y: u16) -> Self {
-        Self {
-            children: Vec::new(),
-            padding_x,
-            padding_y,
-        }
+        Self { children: Vec::new(), padding_x, padding_y }
     }
 
     pub fn add(&mut self, child: impl Component + 'static) {
@@ -116,11 +112,7 @@ impl Box {
     /// Pad a string to exactly `target_width` visible columns.
     fn pad_to(&self, target_width: usize, s: &str) -> String {
         let vis = visible_width(s);
-        if vis < target_width {
-            format!("{}{}", s, " ".repeat(target_width - vis))
-        } else {
-            s.to_string()
-        }
+        if vis < target_width { format!("{}{}", s, " ".repeat(target_width - vis)) } else { s.to_string() }
     }
 }
 
@@ -143,9 +135,7 @@ mod tests {
     #[test]
     fn test_box_draws_borders() {
         let mut b = Box::new(1, 0);
-        b.add(TestComp {
-            lines: vec!["hello".to_string()],
-        });
+        b.add(TestComp { lines: vec!["hello".to_string()] });
         let lines = b.render(20);
         // Minimum: top border + content + bottom border = 3 lines
         assert!(lines.len() >= 3);
@@ -166,17 +156,11 @@ mod tests {
     #[test]
     fn test_box_width_respected() {
         let mut b = Box::new(0, 0);
-        b.add(TestComp {
-            lines: vec!["x".to_string()],
-        });
+        b.add(TestComp { lines: vec!["x".to_string()] });
         let w = 10u16;
         let lines = b.render(w);
         for line in &lines {
-            assert_eq!(
-                visible_width(line),
-                w as usize,
-                "line {line:?} has unexpected width"
-            );
+            assert_eq!(visible_width(line), w as usize, "line {line:?} has unexpected width");
         }
     }
 
@@ -193,9 +177,7 @@ mod tests {
     #[test]
     fn test_box_padding_y() {
         let mut b = Box::new(1, 2);
-        b.add(TestComp {
-            lines: vec!["hi".to_string()],
-        });
+        b.add(TestComp { lines: vec!["hi".to_string()] });
         let lines = b.render(20);
         // top border + 2 padding + content + 2 padding + bottom border = 7
         assert_eq!(lines.len(), 7);
@@ -207,9 +189,7 @@ mod tests {
     #[test]
     fn test_box_very_narrow() {
         let mut b = Box::new(0, 0);
-        b.add(TestComp {
-            lines: vec!["x".to_string()],
-        });
+        b.add(TestComp { lines: vec!["x".to_string()] });
         let lines = b.render(2);
         // At width 2, we have ┌┐ and └┘
         assert_eq!(lines.len(), 2);
@@ -218,9 +198,7 @@ mod tests {
     #[test]
     fn test_box_clear() {
         let mut b = Box::new(1, 0);
-        b.add(TestComp {
-            lines: vec!["text".to_string()],
-        });
+        b.add(TestComp { lines: vec!["text".to_string()] });
         assert_eq!(b.child_count(), 1);
         b.clear();
         assert_eq!(b.child_count(), 0);

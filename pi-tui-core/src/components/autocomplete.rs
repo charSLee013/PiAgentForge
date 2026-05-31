@@ -102,21 +102,13 @@ impl AutocompleteProvider for SimpleAutocomplete {
         }
 
         let query = prefix.to_lowercase();
-        let matched: Vec<AutocompleteItem> = self
-            .items
-            .iter()
-            .filter(|item| item.label.to_lowercase().starts_with(&query))
-            .take(20)
-            .cloned()
-            .collect();
+        let matched: Vec<AutocompleteItem> =
+            self.items.iter().filter(|item| item.label.to_lowercase().starts_with(&query)).take(20).cloned().collect();
 
         if matched.is_empty() {
             None
         } else {
-            Some(AutocompleteSuggestions {
-                items: matched,
-                prefix: prefix.to_string(),
-            })
+            Some(AutocompleteSuggestions { items: matched, prefix: prefix.to_string() })
         }
     }
 
@@ -129,22 +121,14 @@ impl AutocompleteProvider for SimpleAutocomplete {
         prefix: &str,
     ) -> CompletionApplyResult {
         let current_line = lines.get(cursor_line).cloned().unwrap_or_default();
-        let before_prefix = if cursor_col >= prefix.len() {
-            &current_line[..cursor_col - prefix.len()]
-        } else {
-            ""
-        };
+        let before_prefix = if cursor_col >= prefix.len() { &current_line[..cursor_col - prefix.len()] } else { "" };
         let after_cursor = &current_line[cursor_col..];
 
         let new_line = format!("{}{} {}", before_prefix, item.value, after_cursor);
         let mut new_lines = lines.to_vec();
         new_lines[cursor_line] = new_line;
 
-        CompletionApplyResult {
-            lines: new_lines,
-            cursor_line,
-            cursor_col: before_prefix.len() + item.value.len() + 1,
-        }
+        CompletionApplyResult { lines: new_lines, cursor_line, cursor_col: before_prefix.len() + item.value.len() + 1 }
     }
 }
 
@@ -163,11 +147,7 @@ pub struct AutocompleteList {
 
 impl AutocompleteList {
     pub fn new(max_visible: usize) -> Self {
-        Self {
-            items: Vec::new(),
-            selected_index: 0,
-            max_visible: max_visible.max(1),
-        }
+        Self { items: Vec::new(), selected_index: 0, max_visible: max_visible.max(1) }
     }
 
     pub fn set_suggestions(&mut self, suggestions: Vec<AutocompleteItem>) {
@@ -185,21 +165,13 @@ impl AutocompleteList {
 
     pub fn move_selection_up(&mut self) {
         if !self.items.is_empty() {
-            self.selected_index = if self.selected_index == 0 {
-                self.items.len() - 1
-            } else {
-                self.selected_index - 1
-            };
+            self.selected_index = if self.selected_index == 0 { self.items.len() - 1 } else { self.selected_index - 1 };
         }
     }
 
     pub fn move_selection_down(&mut self) {
         if !self.items.is_empty() {
-            self.selected_index = if self.selected_index == self.items.len() - 1 {
-                0
-            } else {
-                self.selected_index + 1
-            };
+            self.selected_index = if self.selected_index == self.items.len() - 1 { 0 } else { self.selected_index + 1 };
         }
     }
 }
@@ -253,21 +225,9 @@ mod tests {
     #[test]
     fn test_simple_autocomplete_matches_prefix() {
         let provider = SimpleAutocomplete::new(vec![
-            AutocompleteItem {
-                value: "help".into(),
-                label: "help".into(),
-                description: Some("Show help".into()),
-            },
-            AutocompleteItem {
-                value: "history".into(),
-                label: "history".into(),
-                description: None,
-            },
-            AutocompleteItem {
-                value: "run".into(),
-                label: "run".into(),
-                description: None,
-            },
+            AutocompleteItem { value: "help".into(), label: "help".into(), description: Some("Show help".into()) },
+            AutocompleteItem { value: "history".into(), label: "history".into(), description: None },
+            AutocompleteItem { value: "run".into(), label: "run".into(), description: None },
         ]);
 
         let lines = vec!["h".to_string()];
@@ -281,13 +241,11 @@ mod tests {
 
     #[test]
     fn test_simple_autocomplete_no_match() {
-        let provider = SimpleAutocomplete::new(vec![
-            AutocompleteItem {
-                value: "help".into(),
-                label: "help".into(),
-                description: None,
-            },
-        ]);
+        let provider = SimpleAutocomplete::new(vec![AutocompleteItem {
+            value: "help".into(),
+            label: "help".into(),
+            description: None,
+        }]);
 
         let lines = vec!["xyz".to_string()];
         let result = provider.get_suggestions(&lines, 0, 3);
@@ -296,13 +254,11 @@ mod tests {
 
     #[test]
     fn test_simple_autocomplete_empty_line() {
-        let provider = SimpleAutocomplete::new(vec![
-            AutocompleteItem {
-                value: "help".into(),
-                label: "help".into(),
-                description: None,
-            },
-        ]);
+        let provider = SimpleAutocomplete::new(vec![AutocompleteItem {
+            value: "help".into(),
+            label: "help".into(),
+            description: None,
+        }]);
 
         let lines = vec![String::new()];
         let result = provider.get_suggestions(&lines, 0, 0);
@@ -313,16 +269,8 @@ mod tests {
     fn test_autocomplete_list_renders() {
         let mut list = AutocompleteList::new(10);
         list.set_suggestions(vec![
-            AutocompleteItem {
-                value: "help".into(),
-                label: "help".into(),
-                description: None,
-            },
-            AutocompleteItem {
-                value: "history".into(),
-                label: "history".into(),
-                description: None,
-            },
+            AutocompleteItem { value: "help".into(), label: "help".into(), description: None },
+            AutocompleteItem { value: "history".into(), label: "history".into(), description: None },
         ]);
         let lines = list.render(80);
         assert_eq!(lines.len(), 2);
@@ -341,16 +289,8 @@ mod tests {
     fn test_autocomplete_list_navigation() {
         let mut list = AutocompleteList::new(10);
         list.set_suggestions(vec![
-            AutocompleteItem {
-                value: "a".into(),
-                label: "Apple".into(),
-                description: None,
-            },
-            AutocompleteItem {
-                value: "b".into(),
-                label: "Banana".into(),
-                description: None,
-            },
+            AutocompleteItem { value: "a".into(), label: "Apple".into(), description: None },
+            AutocompleteItem { value: "b".into(), label: "Banana".into(), description: None },
         ]);
         assert_eq!(list.selected_index(), 0);
 
@@ -365,16 +305,8 @@ mod tests {
     fn test_autocomplete_list_highlights_selection() {
         let mut list = AutocompleteList::new(10);
         list.set_suggestions(vec![
-            AutocompleteItem {
-                value: "a".into(),
-                label: "Apple".into(),
-                description: None,
-            },
-            AutocompleteItem {
-                value: "b".into(),
-                label: "Banana".into(),
-                description: None,
-            },
+            AutocompleteItem { value: "a".into(), label: "Apple".into(), description: None },
+            AutocompleteItem { value: "b".into(), label: "Banana".into(), description: None },
         ]);
         let lines = list.render(80);
         // First line should have arrow and be highlighted
@@ -385,11 +317,7 @@ mod tests {
     #[test]
     fn test_apply_completion() {
         let provider = SimpleAutocomplete::new(vec![]);
-        let item = AutocompleteItem {
-            value: "help".into(),
-            label: "help".into(),
-            description: None,
-        };
+        let item = AutocompleteItem { value: "help".into(), label: "help".into(), description: None };
 
         let result = provider.apply_completion(&["he".to_string()], 0, 2, &item, "he");
         assert_eq!(result.lines[0], "help ");

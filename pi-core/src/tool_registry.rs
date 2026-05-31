@@ -6,15 +6,76 @@
 
 use pi_agent_core::types::AgentToolResult;
 use pi_ai_core::types::{ContentBlock, TextContent, ToolDefinition};
+use std::collections::BTreeSet;
 use tokio_util::sync::CancellationToken;
 
-use crate::tools::bash::{execute_bash, BashInput};
-use crate::tools::edit::{execute_edit, EditInput};
-use crate::tools::find::{execute_find, FindInput};
-use crate::tools::grep::{execute_grep, GrepInput};
-use crate::tools::ls::{execute_ls, LsInput};
-use crate::tools::read::{execute_read, ReadInput};
-use crate::tools::write::{execute_write, WriteInput};
+use crate::tools::bash::{BashInput, execute_bash};
+use crate::tools::edit::{EditInput, execute_edit};
+use crate::tools::find::{FindInput, execute_find};
+use crate::tools::grep::{GrepInput, execute_grep};
+use crate::tools::ls::{LsInput, execute_ls};
+use crate::tools::read::{ReadInput, execute_read};
+use crate::tools::write::{WriteInput, execute_write};
+
+/// Tool exposure preset for user-facing workflows.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ToolPreset {
+    Full,
+    PlanReadOnly,
+}
+
+/// CLI-visible built-in tool selection policy.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ToolSelection {
+    disable_builtin: bool,
+    allowlist: Option<BTreeSet<String>>,
+}
+
+impl Default for ToolSelection {
+    fn default() -> Self {
+        Self::all()
+    }
+}
+
+impl ToolSelection {
+    /// Enable all built-in tools.
+    pub fn all() -> Self {
+        Self { disable_builtin: false, allowlist: None }
+    }
+
+    /// Disable all built-in tools.
+    pub fn disable_builtin() -> Self {
+        Self { disable_builtin: true, allowlist: None }
+    }
+
+    /// Allow only the named built-in tools.
+    pub fn allow_only(names: &[String]) -> Result<Self, String> {
+        let mut allowlist = BTreeSet::new();
+        for name in names {
+            let normalized = normalize_tool_name(name).ok_or_else(|| {
+                format!("Unknown tool '{}'. Supported built-in tools: {}", name, supported_tool_names().join(", "))
+            })?;
+            allowlist.insert(normalized.to_string());
+        }
+        Ok(Self { disable_builtin: false, allowlist: Some(allowlist) })
+    }
+
+    fn allows(&self, name: &str) -> bool {
+        if self.disable_builtin {
+            return false;
+        }
+        let Some(normalized) = normalize_tool_name(name) else {
+            return false;
+        };
+        match &self.allowlist {
+            Some(allowlist) => allowlist.contains(normalized),
+            None => true,
+        }
+    }
+}
+
+const PLAN_BASH_ALLOWLIST: &[&str] =
+    &["pwd", "ls", "eza", "grep", "rg", "cat", "head", "tail", "git status", "git ls-files"];
 
 // ---------------------------------------------------------------------------
 // Tool definitions
@@ -22,6 +83,16 @@ use crate::tools::write::{execute_write, WriteInput};
 
 /// Return [`ToolDefinition`] for all seven built-in tools.
 pub fn tool_definitions() -> Vec<ToolDefinition> {
+    tool_definitions_for_preset(ToolPreset::Full)
+}
+
+/// Return tool definitions filtered by a user-facing preset.
+pub fn tool_definitions_for_preset(preset: ToolPreset) -> Vec<ToolDefinition> {
+    tool_definitions_for_selection(preset, &ToolSelection::all())
+}
+
+/// Return tool definitions filtered by preset and CLI tool selection.
+pub fn tool_definitions_for_selection(preset: ToolPreset, selection: &ToolSelection) -> Vec<ToolDefinition> {
     vec![
         ToolDefinition {
             name: "Bash".into(),
@@ -198,6 +269,13 @@ pub fn tool_definitions() -> Vec<ToolDefinition> {
             strict: None,
         },
     ]
+    .into_iter()
+    .filter(|definition| match preset {
+        ToolPreset::Full => true,
+        ToolPreset::PlanReadOnly => matches!(definition.name.as_str(), "Bash" | "Read" | "Grep" | "Find" | "Ls"),
+    })
+    .filter(|definition| selection.allows(&definition.name))
+    .collect()
 }
 
 // ---------------------------------------------------------------------------
@@ -213,24 +291,87 @@ pub async fn execute_tool(
     args: serde_json::Value,
     cancel: CancellationToken,
 ) -> Result<AgentToolResult, String> {
-    let cwd =
-        std::env::current_dir().map_err(|e| format!("Failed to get current directory: {e}"))?;
+    execute_tool_for_preset(name, args, cancel, ToolPreset::Full).await
+}
 
-    match name {
-        "Bash" | "bash" => cmd_bash(args, cancel).await,
-        "Read" | "read" => cmd_read(args, &cwd).await,
-        "Write" | "write" => cmd_write(args, &cwd).await,
-        "Edit" | "edit" => cmd_edit(args, &cwd).await,
-        "Grep" | "grep" => cmd_grep(args, &cwd).await,
-        "Find" | "find" => cmd_find(args, &cwd).await,
-        "Ls" | "ls" => cmd_ls(args, &cwd).await,
+/// Execute a tool with preset-based policy filtering.
+pub async fn execute_tool_for_preset(
+    name: &str,
+    args: serde_json::Value,
+    cancel: CancellationToken,
+    preset: ToolPreset,
+) -> Result<AgentToolResult, String> {
+    execute_tool_for_selection(name, args, cancel, preset, &ToolSelection::all()).await
+}
+
+/// Execute a tool with preset and CLI tool selection filtering.
+pub async fn execute_tool_for_selection(
+    name: &str,
+    args: serde_json::Value,
+    cancel: CancellationToken,
+    preset: ToolPreset,
+    selection: &ToolSelection,
+) -> Result<AgentToolResult, String> {
+    if normalize_tool_name(name).is_none() {
+        return Err(format!("Unknown tool: {name}"));
+    }
+    if !selection.allows(name) {
+        return Err(format!("Tool '{name}' is disabled by the current tool selection"));
+    }
+
+    let cwd = std::env::current_dir().map_err(|e| format!("Failed to get current directory: {e}"))?;
+
+    match (preset, name) {
+        (ToolPreset::PlanReadOnly, "Write" | "write" | "Edit" | "edit") => {
+            Err(format!("Tool '{name}' is disabled in plan mode"))
+        }
+        (ToolPreset::PlanReadOnly, "Bash" | "bash") => cmd_bash_plan_mode(args, cancel).await,
+        (_, "Bash" | "bash") => cmd_bash(args, cancel).await,
+        (_, "Read" | "read") => cmd_read(args, &cwd).await,
+        (_, "Write" | "write") => cmd_write(args, &cwd).await,
+        (_, "Edit" | "edit") => cmd_edit(args, &cwd).await,
+        (_, "Grep" | "grep") => cmd_grep(args, &cwd).await,
+        (_, "Find" | "find") => cmd_find(args, &cwd).await,
+        (_, "Ls" | "ls") => cmd_ls(args, &cwd).await,
         _ => Err(format!("Unknown tool: {name}")),
     }
+}
+
+fn normalize_tool_name(name: &str) -> Option<&'static str> {
+    match name.to_ascii_lowercase().as_str() {
+        "bash" => Some("bash"),
+        "read" => Some("read"),
+        "write" => Some("write"),
+        "edit" => Some("edit"),
+        "grep" => Some("grep"),
+        "find" => Some("find"),
+        "ls" => Some("ls"),
+        _ => None,
+    }
+}
+
+fn supported_tool_names() -> [&'static str; 7] {
+    ["bash", "read", "write", "edit", "grep", "find", "ls"]
 }
 
 // ---------------------------------------------------------------------------
 // Individual tool handlers
 // ---------------------------------------------------------------------------
+
+fn is_allowed_plan_bash(command: &str) -> bool {
+    let trimmed = command.trim();
+    if trimmed.is_empty() {
+        return false;
+    }
+    if trimmed.chars().any(|ch| matches!(ch, '\n' | '\r' | '\t')) {
+        return false;
+    }
+    let forbidden_fragments = ["&&", "||", ";", "|", ">", "<", "$(", "`"];
+    if forbidden_fragments.iter().any(|fragment| trimmed.contains(fragment)) {
+        return false;
+    }
+    PLAN_BASH_ALLOWLIST.iter().any(|prefix| trimmed == *prefix || trimmed.starts_with(&format!("{prefix} ")))
+}
 
 async fn cmd_bash(args: serde_json::Value, cancel: CancellationToken) -> Result<AgentToolResult, String> {
     let command = args
@@ -241,21 +382,32 @@ async fn cmd_bash(args: serde_json::Value, cancel: CancellationToken) -> Result<
     let timeout = args.get("timeout").and_then(|v| v.as_u64());
 
     let input = BashInput { command, timeout };
-    let result = execute_bash(&input, cancel)
-        .await
-        .map_err(|e| format!("Bash error: {e}"))?;
+    let result = execute_bash(&input, cancel).await.map_err(|e| format!("Bash error: {e}"))?;
 
     Ok(AgentToolResult {
         tool_call_id: String::new(),
-        content: vec![ContentBlock::Text(TextContent {
-            text: result.output,
-        })],
+        content: vec![ContentBlock::Text(TextContent { text: result.output })],
         is_error: result.exit_code != 0,
         details: Some(serde_json::json!({
             "exit_code": result.exit_code,
             "truncated": result.truncated,
         })),
     })
+}
+
+async fn cmd_bash_plan_mode(args: serde_json::Value, cancel: CancellationToken) -> Result<AgentToolResult, String> {
+    let command = args
+        .get("command")
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| "Missing required field 'command' for Bash tool".to_string())?;
+    if !is_allowed_plan_bash(command) {
+        return Err(format!(
+            "Bash command '{}' is blocked in plan mode. Allowed prefixes: {}",
+            command,
+            PLAN_BASH_ALLOWLIST.join(", ")
+        ));
+    }
+    cmd_bash(args, cancel).await
 }
 
 async fn cmd_read(args: serde_json::Value, cwd: &std::path::Path) -> Result<AgentToolResult, String> {
@@ -268,15 +420,11 @@ async fn cmd_read(args: serde_json::Value, cwd: &std::path::Path) -> Result<Agen
     let limit = args.get("limit").and_then(|v| v.as_u64()).map(|v| v as usize);
 
     let input = ReadInput { path, offset, limit };
-    let result = execute_read(&input, cwd)
-        .await
-        .map_err(|e| format!("Read error: {e}"))?;
+    let result = execute_read(&input, cwd).await.map_err(|e| format!("Read error: {e}"))?;
 
     Ok(AgentToolResult {
         tool_call_id: String::new(),
-        content: vec![ContentBlock::Text(TextContent {
-            text: result.content,
-        })],
+        content: vec![ContentBlock::Text(TextContent { text: result.content })],
         is_error: false,
         details: None,
     })
@@ -295,15 +443,11 @@ async fn cmd_write(args: serde_json::Value, cwd: &std::path::Path) -> Result<Age
         .to_string();
 
     let input = WriteInput { path, content };
-    let result = execute_write(&input, cwd)
-        .await
-        .map_err(|e| format!("Write error: {e}"))?;
+    let result = execute_write(&input, cwd).await.map_err(|e| format!("Write error: {e}"))?;
 
     Ok(AgentToolResult {
         tool_call_id: String::new(),
-        content: vec![ContentBlock::Text(TextContent {
-            text: result.message,
-        })],
+        content: vec![ContentBlock::Text(TextContent { text: result.message })],
         is_error: false,
         details: None,
     })
@@ -326,16 +470,8 @@ async fn cmd_edit(args: serde_json::Value, cwd: &std::path::Path) -> Result<Agen
     let edits: Vec<crate::tools::edit_diff::Edit> = edits_raw
         .iter()
         .map(|e| {
-            let old_text = e
-                .get("oldText")
-                .and_then(|v| v.as_str())
-                .unwrap_or("")
-                .to_string();
-            let new_text = e
-                .get("newText")
-                .and_then(|v| v.as_str())
-                .unwrap_or("")
-                .to_string();
+            let old_text = e.get("oldText").and_then(|v| v.as_str()).unwrap_or("").to_string();
+            let new_text = e.get("newText").and_then(|v| v.as_str()).unwrap_or("").to_string();
             crate::tools::edit_diff::Edit { old_text, new_text }
         })
         .collect();
@@ -345,9 +481,7 @@ async fn cmd_edit(args: serde_json::Value, cwd: &std::path::Path) -> Result<Agen
     }
 
     let input = EditInput { path, edits };
-    let result = execute_edit(&input, cwd)
-        .await
-        .map_err(|e| format!("Edit error: {e}"))?;
+    let result = execute_edit(&input, cwd).await.map_err(|e| format!("Edit error: {e}"))?;
 
     Ok(AgentToolResult {
         tool_call_id: String::new(),
@@ -372,24 +506,12 @@ async fn cmd_grep(args: serde_json::Value, cwd: &std::path::Path) -> Result<Agen
     let context = args.get("context").and_then(|v| v.as_u64()).map(|v| v as usize);
     let limit = args.get("limit").and_then(|v| v.as_u64()).map(|v| v as usize);
 
-    let input = GrepInput {
-        pattern,
-        path,
-        glob,
-        ignore_case,
-        literal,
-        context,
-        limit,
-    };
-    let result = execute_grep(&input, cwd)
-        .await
-        .map_err(|e| format!("Grep error: {e}"))?;
+    let input = GrepInput { pattern, path, glob, ignore_case, literal, context, limit };
+    let result = execute_grep(&input, cwd).await.map_err(|e| format!("Grep error: {e}"))?;
 
     Ok(AgentToolResult {
         tool_call_id: String::new(),
-        content: vec![ContentBlock::Text(TextContent {
-            text: result.output,
-        })],
+        content: vec![ContentBlock::Text(TextContent { text: result.output })],
         is_error: false,
         details: None,
     })
@@ -405,15 +527,11 @@ async fn cmd_find(args: serde_json::Value, cwd: &std::path::Path) -> Result<Agen
     let limit = args.get("limit").and_then(|v| v.as_u64()).map(|v| v as usize);
 
     let input = FindInput { pattern, path, limit };
-    let result = execute_find(&input, cwd)
-        .await
-        .map_err(|e| format!("Find error: {e}"))?;
+    let result = execute_find(&input, cwd).await.map_err(|e| format!("Find error: {e}"))?;
 
     Ok(AgentToolResult {
         tool_call_id: String::new(),
-        content: vec![ContentBlock::Text(TextContent {
-            text: result.output,
-        })],
+        content: vec![ContentBlock::Text(TextContent { text: result.output })],
         is_error: false,
         details: None,
     })
@@ -424,15 +542,11 @@ async fn cmd_ls(args: serde_json::Value, cwd: &std::path::Path) -> Result<AgentT
     let limit = args.get("limit").and_then(|v| v.as_u64()).map(|v| v as usize);
 
     let input = LsInput { path, limit };
-    let result = execute_ls(&input, cwd)
-        .await
-        .map_err(|e| format!("Ls error: {e}"))?;
+    let result = execute_ls(&input, cwd).await.map_err(|e| format!("Ls error: {e}"))?;
 
     Ok(AgentToolResult {
         tool_call_id: String::new(),
-        content: vec![ContentBlock::Text(TextContent {
-            text: result.output,
-        })],
+        content: vec![ContentBlock::Text(TextContent { text: result.output })],
         is_error: false,
         details: None,
     })
@@ -461,6 +575,46 @@ mod tests {
         assert!(names.contains(&"Ls"), "Ls missing: {names:?}");
     }
 
+    #[test]
+    fn test_plan_tool_preset_is_read_only() {
+        let defs = tool_definitions_for_preset(ToolPreset::PlanReadOnly);
+        let names: Vec<&str> = defs.iter().map(|d| d.name.as_str()).collect();
+        assert_eq!(defs.len(), 5, "plan mode should only expose read-only tools");
+        assert!(names.contains(&"Bash"), "Bash missing: {names:?}");
+        assert!(names.contains(&"Read"), "Read missing: {names:?}");
+        assert!(names.contains(&"Grep"), "Grep missing: {names:?}");
+        assert!(names.contains(&"Find"), "Find missing: {names:?}");
+        assert!(names.contains(&"Ls"), "Ls missing: {names:?}");
+        assert!(!names.contains(&"Write"), "Write should be hidden: {names:?}");
+        assert!(!names.contains(&"Edit"), "Edit should be hidden: {names:?}");
+    }
+
+    #[test]
+    fn test_plan_bash_allowlist_blocks_shell_operators() {
+        assert!(is_allowed_plan_bash("rg plan src"));
+        assert!(is_allowed_plan_bash("git status --short"));
+        assert!(!is_allowed_plan_bash("find . -delete"));
+        assert!(!is_allowed_plan_bash("sed -i 's/a/b/' file.txt"));
+        assert!(!is_allowed_plan_bash("git diff --output=patch.txt"));
+        assert!(!is_allowed_plan_bash("git status\ntouch /tmp/pwned"));
+        assert!(!is_allowed_plan_bash("rg plan src && rm -rf /tmp/foo"));
+        assert!(!is_allowed_plan_bash("python hack.py"));
+    }
+
+    #[test]
+    fn test_tool_selection_allow_only_filters_definitions() {
+        let selection = ToolSelection::allow_only(&["read".to_string(), "bash".to_string()]).unwrap();
+        let defs = tool_definitions_for_selection(ToolPreset::Full, &selection);
+        let names: Vec<_> = defs.iter().map(|d| d.name.as_str()).collect();
+        assert_eq!(names, vec!["Bash", "Read"]);
+    }
+
+    #[test]
+    fn test_tool_selection_rejects_unknown_tool_name() {
+        let err = ToolSelection::allow_only(&["unknown".to_string()]).unwrap_err();
+        assert!(err.contains("Unknown tool"));
+    }
+
     #[tokio::test]
     async fn test_execute_bash_echo() {
         let args = serde_json::json!({"command": "echo hello_tool_test"});
@@ -474,13 +628,7 @@ mod tests {
         let text: String = tool_result
             .content
             .iter()
-            .filter_map(|c| {
-                if let ContentBlock::Text(t) = c {
-                    Some(t.text.as_str())
-                } else {
-                    None
-                }
-            })
+            .filter_map(|c| if let ContentBlock::Text(t) = c { Some(t.text.as_str()) } else { None })
             .collect();
         assert!(text.contains("hello_tool_test"), "Output: {text}");
         assert!(!tool_result.is_error, "exit code should be 0");
@@ -492,9 +640,31 @@ mod tests {
         let cancel = CancellationToken::new();
         let result = execute_tool("NonExistentTool", args, cancel).await;
         assert!(result.is_err(), "expected Err for unknown tool");
-        assert!(
-            result.unwrap_err().contains("Unknown tool"),
-            "should mention Unknown tool"
-        );
+        assert!(result.unwrap_err().contains("Unknown tool"), "should mention Unknown tool");
+    }
+
+    #[tokio::test]
+    async fn test_execute_tool_for_plan_preset_blocks_write_tools() {
+        let args = serde_json::json!({"path": "foo.txt", "content": "bar"});
+        let cancel = CancellationToken::new();
+        let result = execute_tool_for_preset("Write", args, cancel, ToolPreset::PlanReadOnly).await;
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("disabled in plan mode"));
+    }
+
+    #[tokio::test]
+    async fn test_execute_tool_for_selection_blocks_disabled_tool() {
+        let selection = ToolSelection::allow_only(&["read".to_string()]).unwrap();
+        let cancel = CancellationToken::new();
+        let err = execute_tool_for_selection(
+            "Bash",
+            serde_json::json!({ "command": "pwd" }),
+            cancel,
+            ToolPreset::Full,
+            &selection,
+        )
+        .await
+        .unwrap_err();
+        assert!(err.contains("disabled by the current tool selection"));
     }
 }

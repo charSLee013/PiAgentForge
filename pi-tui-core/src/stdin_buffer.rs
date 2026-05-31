@@ -66,12 +66,7 @@ impl StdinBuffer {
             }
         });
 
-        Self {
-            buffer: Vec::new(),
-            rx,
-            paste_mode: false,
-            paste_buffer: Vec::new(),
-        }
+        Self { buffer: Vec::new(), rx, paste_mode: false, paste_buffer: Vec::new() }
     }
 
     /// Read available bytes from stdin (non-blocking).
@@ -235,9 +230,7 @@ impl StdinBuffer {
 
     /// Find the first occurrence of a byte pattern in the buffer.
     fn find_bytes(&self, pattern: &[u8]) -> Option<usize> {
-        self.buffer
-            .windows(pattern.len())
-            .position(|w| w == pattern)
+        self.buffer.windows(pattern.len()).position(|w| w == pattern)
     }
 }
 
@@ -279,11 +272,7 @@ fn sequence_status(data: &[u8]) -> SeqStatus {
         }
         // Old-style mouse: ESC[M +3 bytes = 6 total
         if data[2] == b'M' {
-            return if data.len() >= 6 {
-                SeqStatus::Complete
-            } else {
-                SeqStatus::Incomplete
-            };
+            return if data.len() >= 6 { SeqStatus::Complete } else { SeqStatus::Incomplete };
         }
         return csi_status(&data[2..]);
     }
@@ -313,11 +302,7 @@ fn sequence_status(data: &[u8]) -> SeqStatus {
 
     // SS3 sequences: ESC O + single char
     if after_esc == b'O' {
-        return if data.len() >= 3 {
-            SeqStatus::Complete
-        } else {
-            SeqStatus::Incomplete
-        };
+        return if data.len() >= 3 { SeqStatus::Complete } else { SeqStatus::Incomplete };
     }
 
     // Meta/Alt prefix: ESC + single byte

@@ -29,18 +29,14 @@ pub struct Container {
 
 impl fmt::Debug for Container {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("Container")
-            .field("child_count", &self.children.len())
-            .finish()
+        f.debug_struct("Container").field("child_count", &self.children.len()).finish()
     }
 }
 
 impl Container {
     /// Create a new empty container.
     pub fn new() -> Self {
-        Self {
-            children: Vec::new(),
-        }
+        Self { children: Vec::new() }
     }
 
     /// Add a child component to the container.
@@ -88,8 +84,8 @@ impl Component for Container {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::sync::atomic::{AtomicU32, Ordering};
     use std::sync::Arc;
+    use std::sync::atomic::{AtomicU32, Ordering};
 
     /// A simple component that returns fixed lines.
     struct TestComponent {
@@ -106,12 +102,8 @@ mod tests {
     #[test]
     fn test_render_collects_lines() {
         let mut container = Container::new();
-        container.add(TestComponent {
-            lines: vec!["line1".into()],
-        });
-        container.add(TestComponent {
-            lines: vec!["line2".into()],
-        });
+        container.add(TestComponent { lines: vec!["line1".into()] });
+        container.add(TestComponent { lines: vec!["line2".into()] });
 
         let lines = container.render(80);
         assert_eq!(lines, vec!["line1", "line2"]);
@@ -141,9 +133,7 @@ mod tests {
         }
 
         let widths = Arc::new(std::sync::Mutex::new(Vec::new()));
-        container.add(WidthRecorder {
-            captured_widths: widths.clone(),
-        });
+        container.add(WidthRecorder { captured_widths: widths.clone() });
 
         let _ = container.render(120);
         let captured = widths.lock().unwrap();

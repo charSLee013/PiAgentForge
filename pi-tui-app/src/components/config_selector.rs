@@ -3,11 +3,11 @@
 //! Shows a hierarchical view of resource groups and lets the user toggle
 //! individual resources on/off.
 
+use crate::Theme;
 use pi_tui_core::component::Component;
 use pi_tui_core::components::input::Input;
 use pi_tui_core::keys::{matches_key, parse_key};
 use pi_tui_core::utils::truncate_to_width;
-use crate::Theme;
 
 /// Resource type being configured.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -80,11 +80,7 @@ pub struct ConfigSelector {
 
 impl ConfigSelector {
     /// Create a new resource configuration selector.
-    pub fn new(
-        groups: Vec<ResourceGroup>,
-        items: Vec<ResourceEntry>,
-        theme: &Theme,
-    ) -> Self {
+    pub fn new(groups: Vec<ResourceGroup>, items: Vec<ResourceEntry>, theme: &Theme) -> Self {
         // Build flat structure
         let mut flat: Vec<FlatEntry> = Vec::new();
         let mut item_idx = 0;
@@ -133,11 +129,7 @@ impl ConfigSelector {
         while i > 0 && !matches!(self.filtered_flat.get(i), Some(FlatEntry::Item(_))) {
             i -= 1;
         }
-        if matches!(self.filtered_flat.get(i), Some(FlatEntry::Item(_))) {
-            i
-        } else {
-            from
-        }
+        if matches!(self.filtered_flat.get(i), Some(FlatEntry::Item(_))) { i } else { from }
     }
 
     fn find_next_item(&self, from: usize) -> usize {
@@ -145,60 +137,54 @@ impl ConfigSelector {
         while i < self.filtered_flat.len() && !matches!(self.filtered_flat.get(i), Some(FlatEntry::Item(_))) {
             i += 1;
         }
-        if i < self.filtered_flat.len() {
-            i
-        } else {
-            from
-        }
+        if i < self.filtered_flat.len() { i } else { from }
     }
 
     fn apply_filter(&mut self, query: &str) {
-	if query.is_empty() {
-	    self.filtered_flat = self.flat.clone();
-	} else {
-	    let lower = query.to_lowercase();
-	    let matching_indices: std::collections::HashSet<usize> = self
-		.all_items
-		.iter()
-		.enumerate()
-		.filter(|(_, item)| {
-		    item.display_name.to_lowercase().contains(&lower)
-			|| item.path.to_lowercase().contains(&lower)
-			|| item.resource_type.label().to_lowercase().contains(&lower)
-		})
-		.map(|(idx, _)| idx)
-		.collect();
+        if query.is_empty() {
+            self.filtered_flat = self.flat.clone();
+        } else {
+            let lower = query.to_lowercase();
+            let matching_indices: std::collections::HashSet<usize> = self
+                .all_items
+                .iter()
+                .enumerate()
+                .filter(|(_, item)| {
+                    item.display_name.to_lowercase().contains(&lower)
+                        || item.path.to_lowercase().contains(&lower)
+                        || item.resource_type.label().to_lowercase().contains(&lower)
+                })
+                .map(|(idx, _)| idx)
+                .collect();
 
-	    // Rebuild filtered flat with matching items + their groups/subgroups
-	    self.filtered_flat.clear();
-	    let mut global_idx = 0usize;
-	    for group in &self.groups {
-		let mut group_added = false;
-		for subgroup in &group.subgroups {
-		    let mut sg_added = false;
-		    for _ in &subgroup.items {
-			if matching_indices.contains(&global_idx) {
-			    if !group_added {
-				self.filtered_flat.push(FlatEntry::Group(group.label.clone()));
-				group_added = true;
-			    }
-			    if !sg_added {
-				let sg_key = format!("{}/{}", group.label, subgroup.label);
-				self.filtered_flat.push(FlatEntry::Subgroup(sg_key));
-				sg_added = true;
-			    }
-			    self.filtered_flat.push(FlatEntry::Item(global_idx));
-			}
-			global_idx += 1;
-		    }
-		}
-	    }
-	}
+            // Rebuild filtered flat with matching items + their groups/subgroups
+            self.filtered_flat.clear();
+            let mut global_idx = 0usize;
+            for group in &self.groups {
+                let mut group_added = false;
+                for subgroup in &group.subgroups {
+                    let mut sg_added = false;
+                    for _ in &subgroup.items {
+                        if matching_indices.contains(&global_idx) {
+                            if !group_added {
+                                self.filtered_flat.push(FlatEntry::Group(group.label.clone()));
+                                group_added = true;
+                            }
+                            if !sg_added {
+                                let sg_key = format!("{}/{}", group.label, subgroup.label);
+                                self.filtered_flat.push(FlatEntry::Subgroup(sg_key));
+                                sg_added = true;
+                            }
+                            self.filtered_flat.push(FlatEntry::Item(global_idx));
+                        }
+                        global_idx += 1;
+                    }
+                }
+            }
+        }
 
-	// Reset selection to first item
-	self.selected_index = self.filtered_flat.iter()
-	    .position(|e| matches!(e, FlatEntry::Item(_)))
-	    .unwrap_or(0);
+        // Reset selection to first item
+        self.selected_index = self.filtered_flat.iter().position(|e| matches!(e, FlatEntry::Item(_))).unwrap_or(0);
     }
 }
 
@@ -210,9 +196,10 @@ impl Component for ConfigSelector {
         // Header
         let title = self.theme.bold("Resource Configuration");
         let hint = self.theme.ansi(&self.theme.muted, "Space toggle  Esc close");
-        let spacing = " ".repeat(w.saturating_sub(
-            pi_tui_core::utils::visible_width(&title) + pi_tui_core::utils::visible_width(&hint) + 2
-        ).max(1));
+        let spacing = " ".repeat(
+            w.saturating_sub(pi_tui_core::utils::visible_width(&title) + pi_tui_core::utils::visible_width(&hint) + 2)
+                .max(1),
+        );
         lines.push(format!("{}{}{}", title, spacing, hint));
         lines.push(self.theme.ansi(&self.theme.muted, "Type to filter resources"));
         lines.push(String::new());
@@ -257,11 +244,8 @@ impl Component for ConfigSelector {
                         } else {
                             self.theme.ansi(&self.theme.dim, "[ ]")
                         };
-                        let name = if is_selected {
-                            self.theme.bold(&item.display_name)
-                        } else {
-                            item.display_name.clone()
-                        };
+                        let name =
+                            if is_selected { self.theme.bold(&item.display_name) } else { item.display_name.clone() };
                         let line = truncate_to_width(&format!("{}  {}  {}", cursor, checkbox, name), w);
                         lines.push(line);
                     }
@@ -272,12 +256,9 @@ impl Component for ConfigSelector {
         // Scroll indicator for items only
         if start > 0 || end < total {
             let item_count = self.filtered_flat.iter().filter(|e| matches!(e, FlatEntry::Item(_))).count();
-            let items_before = self.filtered_flat[..self.selected_index]
-                .iter()
-                .filter(|e| matches!(e, FlatEntry::Item(_)))
-                .count();
-            let scroll = self.theme.ansi(&self.theme.muted,
-                &format!("  ({}/{})", items_before + 1, item_count));
+            let items_before =
+                self.filtered_flat[..self.selected_index].iter().filter(|e| matches!(e, FlatEntry::Item(_))).count();
+            let scroll = self.theme.ansi(&self.theme.muted, &format!("  ({}/{})", items_before + 1, item_count));
             lines.push(scroll);
         }
 
@@ -317,28 +298,22 @@ mod tests {
     #[test]
     fn test_config_selector_renders() {
         let theme = Theme::dark();
-        let items = vec![
-            ResourceEntry {
-                path: "/home/user/.pi/extensions/my-ext".into(),
-                enabled: true,
+        let items = vec![ResourceEntry {
+            path: "/home/user/.pi/extensions/my-ext".into(),
+            enabled: true,
+            resource_type: ResourceType::Extensions,
+            display_name: "my-ext".into(),
+            group_label: "User".into(),
+            subgroup_label: "Extensions".into(),
+        }];
+        let groups = vec![ResourceGroup {
+            label: "User".into(),
+            subgroups: vec![ResourceSubgroup {
                 resource_type: ResourceType::Extensions,
-                display_name: "my-ext".into(),
-                group_label: "User".into(),
-                subgroup_label: "Extensions".into(),
-            },
-        ];
-        let groups = vec![
-            ResourceGroup {
-                label: "User".into(),
-                subgroups: vec![
-                    ResourceSubgroup {
-                        resource_type: ResourceType::Extensions,
-                        label: "Extensions".into(),
-                        items: items.clone(),
-                    },
-                ],
-            },
-        ];
+                label: "Extensions".into(),
+                items: items.clone(),
+            }],
+        }];
 
         let selector = ConfigSelector::new(groups, items, &theme);
         let lines = selector.render(80);
@@ -359,28 +334,22 @@ mod tests {
     #[test]
     fn test_config_selector_toggle() {
         let theme = Theme::dark();
-        let items = vec![
-            ResourceEntry {
-                path: "/test/ext".into(),
-                enabled: false,
+        let items = vec![ResourceEntry {
+            path: "/test/ext".into(),
+            enabled: false,
+            resource_type: ResourceType::Extensions,
+            display_name: "test-ext".into(),
+            group_label: "Test".into(),
+            subgroup_label: "Extensions".into(),
+        }];
+        let groups = vec![ResourceGroup {
+            label: "Test".into(),
+            subgroups: vec![ResourceSubgroup {
                 resource_type: ResourceType::Extensions,
-                display_name: "test-ext".into(),
-                group_label: "Test".into(),
-                subgroup_label: "Extensions".into(),
-            },
-        ];
-        let groups = vec![
-            ResourceGroup {
-                label: "Test".into(),
-                subgroups: vec![
-                    ResourceSubgroup {
-                        resource_type: ResourceType::Extensions,
-                        label: "Extensions".into(),
-                        items: items.clone(),
-                    },
-                ],
-            },
-        ];
+                label: "Extensions".into(),
+                items: items.clone(),
+            }],
+        }];
 
         let mut selector = ConfigSelector::new(groups, items, &theme);
         // First item should be selected

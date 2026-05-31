@@ -95,10 +95,7 @@ impl FileSystem for DefaultFileSystem {
         let meta = tokio::fs::metadata(path).await?;
         Ok(DirEntry {
             path: path.to_path_buf(),
-            file_name: path
-                .file_name()
-                .map(|s| s.to_os_string())
-                .unwrap_or_default(),
+            file_name: path.file_name().map(|s| s.to_os_string()).unwrap_or_default(),
             is_dir: meta.is_dir(),
             len: meta.len(),
             modified: meta.modified().ok(),
@@ -184,14 +181,8 @@ impl Shell for DefaultShell {
             .spawn()
             .map_err(IoError::Io)?;
 
-        let stdout_reader = child
-            .stdout
-            .take()
-            .ok_or_else(|| IoError::Io(std::io::Error::other("no stdout")))?;
-        let stderr_reader = child
-            .stderr
-            .take()
-            .ok_or_else(|| IoError::Io(std::io::Error::other("no stderr")))?;
+        let stdout_reader = child.stdout.take().ok_or_else(|| IoError::Io(std::io::Error::other("no stdout")))?;
+        let stderr_reader = child.stderr.take().ok_or_else(|| IoError::Io(std::io::Error::other("no stderr")))?;
 
         let read_stdout = tokio::spawn(async move { read_stream_to_string(stdout_reader).await });
         let read_stderr = tokio::spawn(async move { read_stream_to_string(stderr_reader).await });
@@ -234,20 +225,10 @@ impl Shell for DefaultShell {
         };
 
         let exit_code = wait_result.code().unwrap_or(-1);
-        let stdout = read_stdout
-            .await
-            .unwrap_or_else(|_| Ok(String::new()))
-            .unwrap_or_default();
-        let stderr = read_stderr
-            .await
-            .unwrap_or_else(|_| Ok(String::new()))
-            .unwrap_or_default();
+        let stdout = read_stdout.await.unwrap_or_else(|_| Ok(String::new())).unwrap_or_default();
+        let stderr = read_stderr.await.unwrap_or_else(|_| Ok(String::new())).unwrap_or_default();
 
-        Ok(ShellOutput {
-            exit_code,
-            stdout,
-            stderr,
-        })
+        Ok(ShellOutput { exit_code, stdout, stderr })
     }
 }
 
@@ -258,8 +239,8 @@ impl Shell for DefaultShell {
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
-    use std::sync::atomic::{AtomicBool, Ordering};
     use std::sync::Arc;
+    use std::sync::atomic::{AtomicBool, Ordering};
 
     // ---- Mock FileSystem for tests ----
 
@@ -270,9 +251,7 @@ pub(crate) mod tests {
 
     impl MockFileSystem {
         pub fn new() -> Self {
-            Self {
-                files: std::collections::HashMap::new(),
-            }
+            Self { files: std::collections::HashMap::new() }
         }
 
         pub fn add_file(&mut self, path: &Path, content: &str) {
@@ -283,10 +262,7 @@ pub(crate) mod tests {
     #[async_trait::async_trait]
     impl FileSystem for MockFileSystem {
         async fn read(&self, path: &Path) -> Result<Vec<u8>, IoError> {
-            self.files
-                .get(path)
-                .cloned()
-                .ok_or_else(|| IoError::NotFound(path.display().to_string()))
+            self.files.get(path).cloned().ok_or_else(|| IoError::NotFound(path.display().to_string()))
         }
 
         async fn read_to_string(&self, path: &Path) -> Result<String, IoError> {
@@ -307,10 +283,7 @@ pub(crate) mod tests {
         }
 
         async fn metadata(&self, path: &Path) -> Result<DirEntry, IoError> {
-            let content = self
-                .files
-                .get(path)
-                .ok_or_else(|| IoError::NotFound(path.display().to_string()))?;
+            let content = self.files.get(path).ok_or_else(|| IoError::NotFound(path.display().to_string()))?;
             Ok(DirEntry {
                 path: path.to_path_buf(),
                 file_name: path.file_name().map(|s| s.to_os_string()).unwrap_or_default(),
@@ -338,9 +311,7 @@ pub(crate) mod tests {
 
     impl MockShell {
         pub fn new() -> Self {
-            Self {
-                execution_count: Arc::new(AtomicBool::new(false)),
-            }
+            Self { execution_count: Arc::new(AtomicBool::new(false)) }
         }
     }
 
@@ -353,11 +324,7 @@ pub(crate) mod tests {
             _cancel: CancellationToken,
         ) -> Result<ShellOutput, IoError> {
             self.execution_count.store(true, Ordering::SeqCst);
-            Ok(ShellOutput {
-                exit_code: 0,
-                stdout: "mock output".to_string(),
-                stderr: String::new(),
-            })
+            Ok(ShellOutput { exit_code: 0, stdout: "mock output".to_string(), stderr: String::new() })
         }
     }
 
@@ -382,9 +349,7 @@ pub(crate) mod tests {
     async fn test_default_shell_timeout() {
         let shell = DefaultShell;
         let cancel = CancellationToken::new();
-        let result = shell
-            .execute("sleep 10", Some(Duration::from_millis(100)), cancel)
-            .await;
+        let result = shell.execute("sleep 10", Some(Duration::from_millis(100)), cancel).await;
         assert!(result.is_err());
     }
 

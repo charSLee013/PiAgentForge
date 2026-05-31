@@ -24,4 +24,5 @@ tokio.workspace = true
 tokio-util.workspace = true
 tokio-stream = { workspace = true }
 unicode-width = "0.2"
+dirs = "5"
 pi-extension-system = { path = "../pi-extension-system", optional = true }

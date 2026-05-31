@@ -23,16 +23,10 @@ where
 
     let semaphore = {
         let mut queues = QUEUES.lock().await;
-        queues
-            .entry(canonical)
-            .or_insert_with(|| Arc::new(tokio::sync::Semaphore::new(1)))
-            .clone()
+        queues.entry(canonical).or_insert_with(|| Arc::new(tokio::sync::Semaphore::new(1))).clone()
     };
 
-    let _permit = semaphore
-        .acquire()
-        .await
-        .expect("Semaphore should not be closed");
+    let _permit = semaphore.acquire().await.expect("Semaphore should not be closed");
 
     op.await
 }
@@ -72,11 +66,6 @@ mod tests {
         // But they should NOT both see 0.
         let v1 = r1.unwrap();
         let v2 = r2.unwrap();
-        assert!(
-            (v1 == 0 && v2 == 1) || (v1 == 1 && v2 == 0),
-            "Values should be sequential: got {} and {}",
-            v1,
-            v2
-        );
+        assert!((v1 == 0 && v2 == 1) || (v1 == 1 && v2 == 0), "Values should be sequential: got {} and {}", v1, v2);
     }
 }

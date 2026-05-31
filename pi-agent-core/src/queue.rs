@@ -50,10 +50,7 @@ pub struct MessageQueue {
 impl MessageQueue {
     /// Create a new queue with the given drain mode.
     pub fn new(mode: QueueMode) -> Self {
-        Self {
-            mode,
-            messages: VecDeque::new(),
-        }
+        Self { mode, messages: VecDeque::new() }
     }
 
     /// Enqueue a message with normal priority.

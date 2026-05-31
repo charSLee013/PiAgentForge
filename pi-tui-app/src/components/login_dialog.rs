@@ -3,10 +3,10 @@
 //! Replaces the main display during OAuth login flow.  Can show a URL,
 //! prompt for text input, or display informational messages.
 
+use crate::Theme;
 use pi_tui_core::component::Component;
 use pi_tui_core::components::input::Input;
 use pi_tui_core::keys::{matches_key, parse_key};
-use crate::Theme;
 
 /// Multi-purpose login dialog component.
 pub struct LoginDialog {

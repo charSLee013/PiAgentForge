@@ -5,10 +5,10 @@
 //!
 //! Mirrors `packages/coding-agent/src/modes/interactive/components/bash-execution.ts`
 
+use crate::Theme;
 use pi_tui_core::components::spacer::Spacer;
 use pi_tui_core::components::text::Text;
 use pi_tui_core::{Component, Container};
-use crate::Theme;
 
 /// Execution status for a bash command.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -149,15 +149,8 @@ mod tests {
     #[test]
     fn test_bash_execution_error() {
         let theme = Theme::dark();
-        let comp = BashExecution::new(
-            "false".into(),
-            String::new(),
-            ExecutionStatus::Error,
-            Some(1),
-            true,
-            false,
-            &theme,
-        );
+        let comp =
+            BashExecution::new("false".into(), String::new(), ExecutionStatus::Error, Some(1), true, false, &theme);
         let lines = comp.render(80);
         assert!(lines.iter().any(|l| l.contains("(exit 1)")));
     }
@@ -165,15 +158,8 @@ mod tests {
     #[test]
     fn test_bash_execution_cancelled() {
         let theme = Theme::dark();
-        let comp = BashExecution::new(
-            "sleep 10".into(),
-            String::new(),
-            ExecutionStatus::Cancelled,
-            None,
-            true,
-            false,
-            &theme,
-        );
+        let comp =
+            BashExecution::new("sleep 10".into(), String::new(), ExecutionStatus::Cancelled, None, true, false, &theme);
         let lines = comp.render(80);
         assert!(lines.iter().any(|l| l.contains("(cancelled)")));
     }
@@ -181,15 +167,8 @@ mod tests {
     #[test]
     fn test_bash_execution_excluded() {
         let theme = Theme::dark();
-        let comp = BashExecution::new(
-            "secret".into(),
-            String::new(),
-            ExecutionStatus::Complete,
-            Some(0),
-            true,
-            true,
-            &theme,
-        );
+        let comp =
+            BashExecution::new("secret".into(), String::new(), ExecutionStatus::Complete, Some(0), true, true, &theme);
         let lines = comp.render(80);
         assert!(!lines.is_empty());
         // Should still show command

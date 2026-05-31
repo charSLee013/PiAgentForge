@@ -59,12 +59,7 @@ pub struct MatchResult {
 pub fn parse_search_query(query: &str) -> ParsedSearchQuery {
     let trimmed = query.trim();
     if trimmed.is_empty() {
-        return ParsedSearchQuery {
-            mode: SearchMode::Tokens,
-            tokens: vec![],
-            regex: None,
-            error: None,
-        };
+        return ParsedSearchQuery { mode: SearchMode::Tokens, tokens: vec![], regex: None, error: None };
     }
 
     // Regex mode
@@ -78,12 +73,7 @@ pub fn parse_search_query(query: &str) -> ParsedSearchQuery {
                 error: Some("Empty regex".to_string()),
             };
         }
-        return ParsedSearchQuery {
-            mode: SearchMode::Regex,
-            tokens: vec![],
-            regex: Some(p.to_string()),
-            error: None,
-        };
+        return ParsedSearchQuery { mode: SearchMode::Regex, tokens: vec![], regex: Some(p.to_string()), error: None };
     }
 
     // Token mode with quote support
@@ -326,10 +316,7 @@ mod tests {
 
     #[test]
     fn test_name_filter_excludes_unnamed() {
-        let sessions = vec![
-            ("s1", "session one", true),
-            ("s2", "session two", false),
-        ];
+        let sessions = vec![("s1", "session one", true), ("s2", "session two", false)];
         let results = filter_and_sort_sessions(&sessions, "", SortMode::Recent, NameFilter::Named);
         assert_eq!(results.len(), 1);
         assert_eq!(results[0].0, 0); // only s1 has a name

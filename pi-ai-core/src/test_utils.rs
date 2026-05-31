@@ -19,8 +19,11 @@ use std::future::Future;
 use std::pin::Pin;
 
 /// The signature required by the agent loop's `stream_fn` parameter.
-type BoxedStreamFn =
-    Box<dyn Fn(Context) -> Pin<Box<dyn Future<Output = Result<EventStream<StreamEvent>, StreamError>> + Send>> + Send + Sync>;
+type BoxedStreamFn = Box<
+    dyn Fn(Context) -> Pin<Box<dyn Future<Output = Result<EventStream<StreamEvent>, StreamError>> + Send>>
+        + Send
+        + Sync,
+>;
 
 // ---------------------------------------------------------------------------
 // Mock factories
@@ -39,10 +42,7 @@ pub fn mock_stream_fixed(text: &str, stop_reason: &str) -> BoxedStreamFn {
             let (tx, rx) = EventStream::new();
             let _ = tx.send(StreamEvent::Start);
             let _ = tx.send(StreamEvent::TextDelta { delta: text });
-            let _ = tx.send(StreamEvent::Done {
-                message: None,
-                stop_reason: Some(stop_reason),
-            });
+            let _ = tx.send(StreamEvent::Done { message: None, stop_reason: Some(stop_reason) });
             drop(tx);
             Ok(rx)
         })
@@ -73,15 +73,9 @@ pub fn mock_stream_tool_calls(tools: Vec<(&str, &str)>) -> BoxedStreamFn {
                         arguments: Some(args.clone()),
                     });
                 }
-                let _ = tx.send(StreamEvent::Done {
-                    message: None,
-                    stop_reason: Some("tool_use".to_string()),
-                });
+                let _ = tx.send(StreamEvent::Done { message: None, stop_reason: Some("tool_use".to_string()) });
             } else {
-                let _ = tx.send(StreamEvent::Done {
-                    message: None,
-                    stop_reason: Some("end_turn".to_string()),
-                });
+                let _ = tx.send(StreamEvent::Done { message: None, stop_reason: Some("end_turn".to_string()) });
             }
 
             drop(tx);
@@ -102,10 +96,7 @@ pub fn mock_stream_delayed(text: &str, stop_reason: &str, delay_ms: u64) -> Boxe
             let (tx, rx) = EventStream::new();
             let _ = tx.send(StreamEvent::Start);
             let _ = tx.send(StreamEvent::TextDelta { delta: text });
-            let _ = tx.send(StreamEvent::Done {
-                message: None,
-                stop_reason: Some(stop_reason),
-            });
+            let _ = tx.send(StreamEvent::Done { message: None, stop_reason: Some(stop_reason) });
             drop(tx);
             Ok(rx)
         })
@@ -120,11 +111,7 @@ pub fn mock_stream_error(error_msg: &str) -> BoxedStreamFn {
         Box::pin(async move {
             let (tx, rx) = EventStream::new();
             let _ = tx.send(StreamEvent::Error {
-                error: types::StreamError {
-                    message: error_msg,
-                    code: None,
-                    r#type: None,
-                },
+                error: types::StreamError { message: error_msg, code: None, r#type: None },
             });
             drop(tx);
             Ok(rx)
@@ -143,10 +130,7 @@ where
             let (tx, rx) = EventStream::new();
             let _ = tx.send(StreamEvent::Start);
             let _ = tx.send(StreamEvent::TextDelta { delta: text });
-            let _ = tx.send(StreamEvent::Done {
-                message: None,
-                stop_reason: Some(stop_reason),
-            });
+            let _ = tx.send(StreamEvent::Done { message: None, stop_reason: Some(stop_reason) });
             drop(tx);
             Ok(rx)
         })
@@ -169,12 +153,7 @@ mod tests {
     use tokio_stream::StreamExt;
 
     fn dummy_context() -> Context {
-        Context {
-            messages: vec![],
-            system_prompt: None,
-            model: None,
-            tools: vec![],
-        }
+        Context { messages: vec![], system_prompt: None, model: None, tools: vec![] }
     }
 
     #[tokio::test]
@@ -190,7 +169,9 @@ mod tests {
         assert_eq!(events.len(), 3);
         assert!(matches!(events[0], StreamEvent::Start));
         assert!(matches!(&events[1], StreamEvent::TextDelta { delta } if delta == "hello"));
-        assert!(matches!(&events[2], StreamEvent::Done { stop_reason, .. } if stop_reason.as_deref() == Some("end_turn")));
+        assert!(
+            matches!(&events[2], StreamEvent::Done { stop_reason, .. } if stop_reason.as_deref() == Some("end_turn"))
+        );
     }
 
     #[tokio::test]

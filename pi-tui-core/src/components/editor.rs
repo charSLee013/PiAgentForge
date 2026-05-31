@@ -15,7 +15,7 @@
 use std::cell::Cell;
 
 use crate::component::Component;
-use crate::keys::{parse_key, KeyCode};
+use crate::keys::{KeyCode, parse_key};
 use crate::utils::{truncate_to_width, visible_width};
 
 // ---------------------------------------------------------------------------
@@ -152,11 +152,7 @@ impl Editor {
 
     /// Clamp `cursor_col` to the length of the current line.
     fn clamp_cursor_col(&mut self) {
-        let max = self
-            .lines
-            .get(self.cursor_line)
-            .map(|l| l.len())
-            .unwrap_or(0);
+        let max = self.lines.get(self.cursor_line).map(|l| l.len()).unwrap_or(0);
         if self.cursor_col > max {
             self.cursor_col = max;
         }
@@ -437,7 +433,7 @@ impl Component for Editor {
             if !self.paste_buffer.is_empty() {
                 self.push_undo_snapshot();
                 let text = self.paste_buffer.clone();
-				self.insert_text(&text);
+                self.insert_text(&text);
                 self.paste_buffer.clear();
             }
             return;
@@ -573,11 +569,7 @@ impl Editor {
             truncate_to_width(line, width)
         } else {
             let padding = width.saturating_sub(vis);
-            if padding > 0 {
-                format!("{}{}", line, " ".repeat(padding))
-            } else {
-                line.to_string()
-            }
+            if padding > 0 { format!("{}{}", line, " ".repeat(padding)) } else { line.to_string() }
         }
     }
 }
@@ -924,10 +916,7 @@ mod tests {
 
         let before = ed.cursor_col;
         ed.move_word_right();
-        assert!(
-            ed.cursor_col > before,
-            "word_right should advance the cursor"
-        );
+        assert!(ed.cursor_col > before, "word_right should advance the cursor");
     }
 
     #[test]
@@ -937,10 +926,7 @@ mod tests {
 
         let before = ed.cursor_col;
         ed.move_word_left();
-        assert!(
-            ed.cursor_col < before,
-            "word_left should retreat the cursor"
-        );
+        assert!(ed.cursor_col < before, "word_left should retreat the cursor");
     }
 
     #[test]
@@ -1020,11 +1006,7 @@ mod tests {
         let lines = ed.render(80);
         assert!(!lines.is_empty());
         // The cursor is at (0, 0), so the first character should be reversed
-        assert!(
-            lines[0].contains("\x1b[7m"),
-            "render should contain reverse-video ANSI when focused: {:?}",
-            lines[0]
-        );
+        assert!(lines[0].contains("\x1b[7m"), "render should contain reverse-video ANSI when focused: {:?}", lines[0]);
     }
 
     #[test]
@@ -1047,14 +1029,8 @@ mod tests {
         let lines = ed.render(80);
         // Should have top and bottom indicators
         let joined = lines.join(" ");
-        assert!(
-            joined.contains('\u{2191}'),
-            "should contain up arrow indicator"
-        );
-        assert!(
-            joined.contains('\u{2193}'),
-            "should contain down arrow indicator"
-        );
+        assert!(joined.contains('\u{2191}'), "should contain up arrow indicator");
+        assert!(joined.contains('\u{2193}'), "should contain down arrow indicator");
     }
 
     #[test]

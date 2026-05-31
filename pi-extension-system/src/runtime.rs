@@ -132,10 +132,7 @@ impl ExtensionRuntime {
         )?;
 
         // ── Create store ──────────────────────────────────────────────
-        let ctx = ExtensionContext {
-            registered_tools: Vec::new(),
-            event_queue: Vec::new(),
-        };
+        let ctx = ExtensionContext { registered_tools: Vec::new(), event_queue: Vec::new() };
         let mut store = Store::new(&engine, ctx);
 
         // ── Instantiate ───────────────────────────────────────────────
@@ -148,22 +145,12 @@ impl ExtensionRuntime {
         let tool_handler_func: Func = take_export(&instance, &mut store, "tool_handler")?;
 
         // handle_event is optional — old extensions may not export it.
-        let handle_event_func = instance
-            .get_export(&mut store, "handle_event")
-            .and_then(|e| match e {
-                Extern::Func(f) => Some(f),
-                _ => None,
-            });
+        let handle_event_func = instance.get_export(&mut store, "handle_event").and_then(|e| match e {
+            Extern::Func(f) => Some(f),
+            _ => None,
+        });
 
-        Ok(Self {
-            engine,
-            store,
-            init_func,
-            alloc_func,
-            tool_handler_func,
-            handle_event_func,
-            memory,
-        })
+        Ok(Self { engine, store, init_func, alloc_func, tool_handler_func, handle_event_func, memory })
     }
 
     /// Call the extension's `init()` function.
@@ -171,13 +158,8 @@ impl ExtensionRuntime {
     /// During init the extension typically registers its tools via
     /// `pi.register_tool`.
     pub fn call_init(&mut self) -> Result<()> {
-        let typed = self
-            .init_func
-            .typed::<(), ()>(&self.store)
-            .map_err(ExtensionError::Wasm)?;
-        typed
-            .call(&mut self.store, ())
-            .map_err(|e| ExtensionError::Trap(format!("{e:#}")))?;
+        let typed = self.init_func.typed::<(), ()>(&self.store).map_err(ExtensionError::Wasm)?;
+        typed.call(&mut self.store, ()).map_err(|e| ExtensionError::Trap(format!("{e:#}")))?;
         Ok(())
     }
 
@@ -190,33 +172,21 @@ impl ExtensionRuntime {
         let args_bytes = args.as_bytes();
         let args_len = args_bytes.len() as i32;
 
-        let alloc_typed = self
-            .alloc_func
-            .typed::<i32, i32>(&self.store)
-            .map_err(ExtensionError::Wasm)?;
-        let ptr = alloc_typed
-            .call(&mut self.store, args_len)
-            .map_err(|e| ExtensionError::Trap(format!("{e:#}")))?;
+        let alloc_typed = self.alloc_func.typed::<i32, i32>(&self.store).map_err(ExtensionError::Wasm)?;
+        let ptr = alloc_typed.call(&mut self.store, args_len).map_err(|e| ExtensionError::Trap(format!("{e:#}")))?;
 
         // 2. Write args JSON to guest memory
-        self.memory
-            .write(&mut self.store, ptr as usize, args_bytes)
-            .map_err(|e| ExtensionError::Wasm(e.into()))?;
+        self.memory.write(&mut self.store, ptr as usize, args_bytes).map_err(|e| ExtensionError::Wasm(e.into()))?;
 
         // 3. Call tool_handler
-        let handler_typed = self
-            .tool_handler_func
-            .typed::<(i32, i32), i32>(&self.store)
-            .map_err(ExtensionError::Wasm)?;
-        let result_ptr = handler_typed
-            .call(&mut self.store, (ptr, args_len))
-            .map_err(|e| ExtensionError::Trap(format!("{e:#}")))?;
+        let handler_typed =
+            self.tool_handler_func.typed::<(i32, i32), i32>(&self.store).map_err(ExtensionError::Wasm)?;
+        let result_ptr =
+            handler_typed.call(&mut self.store, (ptr, args_len)).map_err(|e| ExtensionError::Trap(format!("{e:#}")))?;
 
         // 4. Read result length (first 4 bytes)
         let mut len_buf = [0u8; 4];
-        self.memory
-            .read(&self.store, result_ptr as usize, &mut len_buf)
-            .map_err(|e| ExtensionError::Wasm(e.into()))?;
+        self.memory.read(&self.store, result_ptr as usize, &mut len_buf).map_err(|e| ExtensionError::Wasm(e.into()))?;
         let result_len = i32::from_le_bytes(len_buf) as usize;
 
         // 5. Read result JSON
@@ -253,24 +223,14 @@ impl ExtensionRuntime {
         let bytes = json_data.as_bytes();
         let len = bytes.len() as i32;
 
-        let alloc_typed = self
-            .alloc_func
-            .typed::<i32, i32>(&self.store)
-            .map_err(ExtensionError::Wasm)?;
-        let ptr = alloc_typed
-            .call(&mut self.store, len)
-            .map_err(|e| ExtensionError::Trap(format!("{e:#}")))?;
+        let alloc_typed = self.alloc_func.typed::<i32, i32>(&self.store).map_err(ExtensionError::Wasm)?;
+        let ptr = alloc_typed.call(&mut self.store, len).map_err(|e| ExtensionError::Trap(format!("{e:#}")))?;
 
-        self.memory
-            .write(&mut self.store, ptr as usize, bytes)
-            .map_err(|e| ExtensionError::Wasm(e.into()))?;
+        self.memory.write(&mut self.store, ptr as usize, bytes).map_err(|e| ExtensionError::Wasm(e.into()))?;
 
-        let handler_typed = func
-            .typed::<(i32, i32), i32>(&self.store)
-            .map_err(ExtensionError::Wasm)?;
-        let result_ptr = handler_typed
-            .call(&mut self.store, (ptr, len))
-            .map_err(|e| ExtensionError::Trap(format!("{e:#}")))?;
+        let handler_typed = func.typed::<(i32, i32), i32>(&self.store).map_err(ExtensionError::Wasm)?;
+        let result_ptr =
+            handler_typed.call(&mut self.store, (ptr, len)).map_err(|e| ExtensionError::Trap(format!("{e:#}")))?;
 
         if result_ptr == 0 {
             return Ok(None);
@@ -278,9 +238,7 @@ impl ExtensionRuntime {
 
         // Read result length (first 4 bytes)
         let mut len_buf = [0u8; 4];
-        self.memory
-            .read(&self.store, result_ptr as usize, &mut len_buf)
-            .map_err(|e| ExtensionError::Wasm(e.into()))?;
+        self.memory.read(&self.store, result_ptr as usize, &mut len_buf).map_err(|e| ExtensionError::Wasm(e.into()))?;
         let result_len = i32::from_le_bytes(len_buf) as usize;
 
         // Read result JSON
@@ -304,10 +262,7 @@ fn take_export<T>(instance: &Instance, store: &mut impl AsContextMut, name: &str
 where
     T: ExportCast,
 {
-    instance
-        .get_export(store, name)
-        .and_then(|e| T::cast(e))
-        .ok_or_else(|| ExtensionError::MissingExport(name.into()))
+    instance.get_export(store, name).and_then(|e| T::cast(e)).ok_or_else(|| ExtensionError::MissingExport(name.into()))
 }
 
 /// Helper trait for downcasting `Extern` to concrete wasmtime types.
@@ -334,12 +289,7 @@ impl ExportCast for Func {
 }
 
 /// Read a UTF-8 string from guest linear memory.
-fn read_guest_string(
-    memory: &Memory,
-    store: &impl AsContext,
-    ptr: i32,
-    len: i32,
-) -> wasmtime::Result<String> {
+fn read_guest_string(memory: &Memory, store: &impl AsContext, ptr: i32, len: i32) -> wasmtime::Result<String> {
     if len < 0 || ptr < 0 {
         return Err(wasmtime::Error::msg("negative pointer or length"));
     }
@@ -347,6 +297,5 @@ fn read_guest_string(
     memory
         .read(store, ptr as usize, &mut buf)
         .map_err(|e| wasmtime::Error::msg(format!("failed to read guest memory: {e}")))?;
-    String::from_utf8(buf)
-        .map_err(|e| wasmtime::Error::msg(format!("guest memory is not valid UTF-8: {e}")))
+    String::from_utf8(buf).map_err(|e| wasmtime::Error::msg(format!("guest memory is not valid UTF-8: {e}")))
 }

@@ -20,14 +20,8 @@ pub struct ExtensionManifest {
 pub enum ExtensionEvent {
     Init,
     Shutdown,
-    ToolCall {
-        name: String,
-        arguments: serde_json::Value,
-    },
-    Message {
-        role: String,
-        content: String,
-    },
+    ToolCall { name: String, arguments: serde_json::Value },
+    Message { role: String, content: String },
 }
 
 /// Extension error types.

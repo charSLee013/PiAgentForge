@@ -2,10 +2,10 @@
 //!
 //! A generic list selector for extension options with title and keybinding hints.
 
+use crate::Theme;
 use pi_tui_core::component::Component;
 use pi_tui_core::keys::{matches_key, parse_key};
 use pi_tui_core::utils::truncate_to_width;
-use crate::Theme;
 
 type ExtensionSelectCallback = Box<dyn FnMut(&str) + Send>;
 
@@ -27,19 +27,8 @@ pub struct ExtensionSelector {
 
 impl ExtensionSelector {
     /// Create a new extension selector.
-    pub fn new(
-        title: String,
-        options: Vec<String>,
-        theme: &Theme,
-    ) -> Self {
-        Self {
-            options,
-            selected_index: 0,
-            title,
-            theme: theme.clone(),
-            on_select: None,
-            on_cancel: None,
-        }
+    pub fn new(title: String, options: Vec<String>, theme: &Theme) -> Self {
+        Self { options, selected_index: 0, title, theme: theme.clone(), on_select: None, on_cancel: None }
     }
 
     /// Return the currently selected option text.
@@ -96,15 +85,14 @@ impl Component for ExtensionSelector {
 
         // Scroll indicator
         if max_visible < self.options.len() {
-            let scroll = self.theme.ansi(&self.theme.muted,
-                &format!("  ({}/{})", self.selected_index + 1, self.options.len()));
+            let scroll =
+                self.theme.ansi(&self.theme.muted, &format!("  ({}/{})", self.selected_index + 1, self.options.len()));
             lines.push(scroll);
         }
 
         // Hint line
         lines.push(String::new());
-        let hint = self.theme.ansi(&self.theme.dim,
-            "\u{2191}\u{2193} navigate  Enter select  Esc cancel");
+        let hint = self.theme.ansi(&self.theme.dim, "\u{2191}\u{2193} navigate  Enter select  Esc cancel");
         lines.push(truncate_to_width(&hint, w));
 
         lines
@@ -114,19 +102,17 @@ impl Component for ExtensionSelector {
         let event = parse_key(data);
 
         if matches_key(&event, "up") {
-            if self.options.is_empty() { return; }
-            self.selected_index = if self.selected_index == 0 {
-                self.options.len() - 1
-            } else {
-                self.selected_index - 1
-            };
+            if self.options.is_empty() {
+                return;
+            }
+            self.selected_index =
+                if self.selected_index == 0 { self.options.len() - 1 } else { self.selected_index - 1 };
         } else if matches_key(&event, "down") {
-            if self.options.is_empty() { return; }
-            self.selected_index = if self.selected_index == self.options.len() - 1 {
-                0
-            } else {
-                self.selected_index + 1
-            };
+            if self.options.is_empty() {
+                return;
+            }
+            self.selected_index =
+                if self.selected_index == self.options.len() - 1 { 0 } else { self.selected_index + 1 };
         } else if matches_key(&event, "enter") {
             if let Some(opt) = self.options.get(self.selected_index).cloned() {
                 if let Some(ref mut cb) = self.on_select {

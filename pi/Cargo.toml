@@ -5,13 +5,13 @@ edition.workspace = true
 license.workspace = true
 
 [features]
-default = []
+default = ["feat-all"]
 feat-all = ["feat-openai", "feat-anthropic", "feat-google", "feat-mistral", "feat-bedrock"]
 feat-extensions = ["dep:pi-extension-system", "pi-tui-app/feat-extensions"]
 feat-openai = []
 feat-anthropic = ["pi-cli/feat-anthropic"]
-feat-google = []
-feat-mistral = []
+feat-google = ["pi-cli/feat-google"]
+feat-mistral = ["pi-cli/feat-mistral"]
 feat-bedrock = ["pi-cli/feat-bedrock"]
 
 [dependencies]
@@ -33,3 +33,7 @@ dirs = "5"
 chrono.workspace = true
 async-trait.workspace = true
 pi-extension-system = { path = "../pi-extension-system", optional = true }
+
+[dev-dependencies]
+tempfile = "3"
+serde_json.workspace = true

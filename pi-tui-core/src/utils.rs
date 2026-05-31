@@ -40,10 +40,7 @@ pub fn extract_ansi_code(s: &str, pos: usize) -> Option<AnsiCode> {
             j += 1;
         }
         if j < bytes.len() {
-            return Some(AnsiCode {
-                code: s[pos..=j].to_string(),
-                length: j + 1 - pos,
-            });
+            return Some(AnsiCode { code: s[pos..=j].to_string(), length: j + 1 - pos });
         }
         return None;
     }
@@ -53,16 +50,10 @@ pub fn extract_ansi_code(s: &str, pos: usize) -> Option<AnsiCode> {
         let mut j = pos + 2;
         while j < bytes.len() {
             if bytes[j] == 0x07 {
-                return Some(AnsiCode {
-                    code: s[pos..=j].to_string(),
-                    length: j + 1 - pos,
-                });
+                return Some(AnsiCode { code: s[pos..=j].to_string(), length: j + 1 - pos });
             }
             if bytes[j] == 0x1b && j + 1 < bytes.len() && bytes[j + 1] == b'\\' {
-                return Some(AnsiCode {
-                    code: s[pos..=j + 1].to_string(),
-                    length: j + 2 - pos,
-                });
+                return Some(AnsiCode { code: s[pos..=j + 1].to_string(), length: j + 2 - pos });
             }
             j += 1;
         }
@@ -74,16 +65,10 @@ pub fn extract_ansi_code(s: &str, pos: usize) -> Option<AnsiCode> {
         let mut j = pos + 2;
         while j < bytes.len() {
             if bytes[j] == 0x07 {
-                return Some(AnsiCode {
-                    code: s[pos..=j].to_string(),
-                    length: j + 1 - pos,
-                });
+                return Some(AnsiCode { code: s[pos..=j].to_string(), length: j + 1 - pos });
             }
             if bytes[j] == 0x1b && j + 1 < bytes.len() && bytes[j + 1] == b'\\' {
-                return Some(AnsiCode {
-                    code: s[pos..=j + 1].to_string(),
-                    length: j + 2 - pos,
-                });
+                return Some(AnsiCode { code: s[pos..=j + 1].to_string(), length: j + 2 - pos });
             }
             j += 1;
         }
@@ -232,11 +217,7 @@ struct AnsiStyleTracker {
 
 impl AnsiStyleTracker {
     fn new() -> Self {
-        Self {
-            active_styles: Vec::new(),
-            have_reset: false,
-            active_hyperlink: None,
-        }
+        Self { active_styles: Vec::new(), have_reset: false, active_hyperlink: None }
     }
 
     /// Process an ANSI code and update internal state.
@@ -317,11 +298,7 @@ impl AnsiStyleTracker {
 
 fn wrap_single_line(line: &str, width: usize, result: &mut Vec<String>, tracker: &mut AnsiStyleTracker) {
     // Prepend active codes from previous lines
-    let prefix = if result.is_empty() {
-        String::new()
-    } else {
-        tracker.wrap_prefix()
-    };
+    let prefix = if result.is_empty() { String::new() } else { tracker.wrap_prefix() };
     let prefixed = format!("{}{}", prefix, line);
 
     if visible_width(&prefixed) <= width {
@@ -456,28 +433,19 @@ fn break_long_word(word: &str, width: usize, tracker: &AnsiStyleTracker) -> Vec<
     while i < word.len() {
         if word.as_bytes()[i] == 0x1b {
             if let Some(ansi) = extract_ansi_code(word, i) {
-                segs.push(Segment {
-                    text: ansi.code,
-                    width: 0,
-                });
+                segs.push(Segment { text: ansi.code, width: 0 });
                 i += ansi.length;
                 continue;
             }
         }
         if word.as_bytes()[i] == b'\t' {
-            segs.push(Segment {
-                text: "\t".to_string(),
-                width: 3,
-            });
+            segs.push(Segment { text: "\t".to_string(), width: 3 });
             i += 1;
             continue;
         }
         let c = word[i..].chars().next().unwrap_or('\0');
         let seg_w = UnicodeWidthChar::width(c).unwrap_or(0);
-        segs.push(Segment {
-            text: c.to_string(),
-            width: seg_w,
-        });
+        segs.push(Segment { text: c.to_string(), width: seg_w });
         i += c.len_utf8();
     }
 
@@ -548,11 +516,7 @@ pub fn wrap_text_with_ansi(text: &str, width: usize) -> Vec<String> {
         wrap_single_line(input_line, width, &mut result, &mut tracker);
     }
 
-    if result.is_empty() {
-        vec![String::new()]
-    } else {
-        result
-    }
+    if result.is_empty() { vec![String::new()] } else { result }
 }
 
 // ---------------------------------------------------------------------------
@@ -647,20 +611,13 @@ pub fn extract_segments(
         }
 
         current_col += cw_effective;
-        if (after_len == 0 && current_col >= before_end)
-            || (after_len > 0 && current_col >= after_end)
-        {
+        if (after_len == 0 && current_col >= before_end) || (after_len > 0 && current_col >= after_end) {
             break;
         }
         i += c.len_utf8();
     }
 
-    Segments {
-        before,
-        before_width,
-        after,
-        after_width,
-    }
+    Segments { before, before_width, after, after_width }
 }
 
 // ---------------------------------------------------------------------------

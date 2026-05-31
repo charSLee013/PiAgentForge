@@ -2,9 +2,9 @@
 //!
 //! Shows available thinking (reasoning) levels for the user to choose from.
 
+use crate::Theme;
 use pi_tui_core::component::Component;
 use pi_tui_core::components::select_list::{SelectItem, SelectList};
-use crate::Theme;
 
 /// A thinking level item.
 #[derive(Debug, Clone)]

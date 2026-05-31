@@ -50,9 +50,7 @@ impl<T> EventStreamSender<T> {
 
 impl<T> Clone for EventStreamSender<T> {
     fn clone(&self) -> Self {
-        Self {
-            tx: self.tx.clone(),
-        }
+        Self { tx: self.tx.clone() }
     }
 }
 
@@ -108,30 +106,20 @@ pub async fn collect_stream(
         return Err(err);
     }
 
-    let content = crate::types::ContentBlock::Text(crate::types::TextContent {
-        text: text_parts.concat(),
-    });
+    let content = crate::types::ContentBlock::Text(crate::types::TextContent { text: text_parts.concat() });
 
     let msg = message.unwrap_or_else(|| crate::types::Message::assistant(vec![content]));
 
     Ok(StreamResult {
         message: msg,
-        usage: crate::types::Usage {
-            input: 0,
-            output: 0,
-            cache_read: None,
-            cache_write: None,
-            total_tokens: None,
-        },
+        usage: crate::types::Usage { input: 0, output: 0, cache_read: None, cache_write: None, total_tokens: None },
         stop_reason,
         api: model.api.clone(),
         provider: model.provider,
         model: model.id.clone(),
         error_message: None,
-        timestamp: std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_millis() as i64,
+        timestamp: std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_millis()
+            as i64,
     })
 }
 

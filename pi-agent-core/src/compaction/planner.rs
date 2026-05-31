@@ -40,9 +40,7 @@ pub fn find_cut_point(entries: &[SessionEntry], keep_recent_tokens: u64) -> Opti
         // Only message entries contribute to token count
         let tokens = match entry {
             SessionEntry::Message(data) => {
-                if let Ok(msg) = serde_json::from_value::<pi_ai_core::types::Message>(
-                    data.message.clone(),
-                ) {
+                if let Ok(msg) = serde_json::from_value::<pi_ai_core::types::Message>(data.message.clone()) {
                     crate::compaction::estimator::estimate_message_tokens(&msg)
                 } else {
                     0
@@ -69,11 +67,7 @@ pub fn find_cut_point(entries: &[SessionEntry], keep_recent_tokens: u64) -> Opti
         Some(idx) if idx >= entries.len() - 1 => {
             // Cut at 2/3 point as fallback (keep the last third)
             let fallback = (entries.len() * 2) / 3;
-            if fallback > 0 && fallback < entries.len() - 1 {
-                Some(fallback)
-            } else {
-                None
-            }
+            if fallback > 0 && fallback < entries.len() - 1 { Some(fallback) } else { None }
         }
         _ => None,
     }
@@ -82,10 +76,7 @@ pub fn find_cut_point(entries: &[SessionEntry], keep_recent_tokens: u64) -> Opti
 /// Prepare a compaction operation.
 ///
 /// Splits entries at the cut point into "summarize" and "keep" groups.
-pub fn prepare_compaction(
-    entries: &[SessionEntry],
-    keep_recent_tokens: u64,
-) -> Option<CompactionPreparation> {
+pub fn prepare_compaction(entries: &[SessionEntry], keep_recent_tokens: u64) -> Option<CompactionPreparation> {
     let cut_idx = find_cut_point(entries, keep_recent_tokens)?;
 
     let entries_to_summarize: Vec<SessionEntry> = entries[..cut_idx].to_vec();
@@ -95,20 +86,12 @@ pub fn prepare_compaction(
     let file_ops = super::estimator::FileOperations::default();
 
     // Check for existing previous summary
-    let prev_summary = entries.iter().rev().find_map(|e| {
-        if let SessionEntry::Compaction(data) = e {
-            Some(data.summary.clone())
-        } else {
-            None
-        }
-    });
+    let prev_summary = entries
+        .iter()
+        .rev()
+        .find_map(|e| if let SessionEntry::Compaction(data) = e { Some(data.summary.clone()) } else { None });
 
-    Some(CompactionPreparation {
-        entries_to_summarize,
-        entries_to_keep,
-        file_ops,
-        prev_summary,
-    })
+    Some(CompactionPreparation { entries_to_summarize, entries_to_keep, file_ops, prev_summary })
 }
 
 #[cfg(test)]
@@ -135,9 +118,8 @@ mod tests {
 
     #[test]
     fn test_find_cut_point_with_enough_entries() {
-        let entries: Vec<SessionEntry> = (0..10)
-            .map(|i| dummy_message_entry(&format!("message number {}", i)))
-            .collect();
+        let entries: Vec<SessionEntry> =
+            (0..10).map(|i| dummy_message_entry(&format!("message number {}", i))).collect();
         let cut = find_cut_point(&entries, 20000);
         // With 10 small messages and 20000 keep_tokens, all should fit
         assert!(cut.is_none() || cut.unwrap() > 0);
@@ -145,17 +127,12 @@ mod tests {
 
     #[test]
     fn test_prepare_compaction_basic() {
-        let entries: Vec<SessionEntry> = (0..10)
-            .map(|i| dummy_message_entry(&format!("entry {}", i)))
-            .collect();
+        let entries: Vec<SessionEntry> = (0..10).map(|i| dummy_message_entry(&format!("entry {}", i))).collect();
         let prep = prepare_compaction(&entries, 10);
         // With keep_tokens=10, many early entries should be summarized
         if let Some(p) = prep {
             // entries_to_summarize + entries_to_keep should equal total
-            assert_eq!(
-                p.entries_to_summarize.len() + p.entries_to_keep.len(),
-                entries.len()
-            );
+            assert_eq!(p.entries_to_summarize.len() + p.entries_to_keep.len(), entries.len());
         }
     }
 }

@@ -27,10 +27,7 @@ pub fn assert_event_sequence(events: &[AgentEvent], expected_patterns: &[&str]) 
 
     for (i, (event, expected)) in events.iter().zip(expected_patterns.iter()).enumerate() {
         let debug = format!("{event:?}");
-        assert!(
-            debug.contains(expected),
-            "Event {i}: expected pattern `{expected}` not found in `{debug}`"
-        );
+        assert!(debug.contains(expected), "Event {i}: expected pattern `{expected}` not found in `{debug}`");
     }
 }
 
@@ -65,27 +62,17 @@ pub fn dummy_tool_definition(name: &str) -> ToolDefinition {
 }
 
 /// Tool executor that always returns a successful result with `"ok"` as text.
-pub fn ok_tool_executor(
-    _name: &str,
-    _id: &str,
-    _args: &serde_json::Value,
-) -> Result<AgentToolResult, String> {
+pub fn ok_tool_executor(_name: &str, _id: &str, _args: &serde_json::Value) -> Result<AgentToolResult, String> {
     Ok(AgentToolResult {
         tool_call_id: _id.to_string(),
-        content: vec![ContentBlock::Text(pi_ai_core::types::TextContent {
-            text: "ok".to_string(),
-        })],
+        content: vec![ContentBlock::Text(pi_ai_core::types::TextContent { text: "ok".to_string() })],
         is_error: false,
         details: Some(serde_json::Value::Null),
     })
 }
 
 /// Tool executor that always returns an error.
-pub fn failing_tool_executor(
-    _name: &str,
-    _id: &str,
-    _args: &serde_json::Value,
-) -> Result<AgentToolResult, String> {
+pub fn failing_tool_executor(_name: &str, _id: &str, _args: &serde_json::Value) -> Result<AgentToolResult, String> {
     Err("mock failure".to_string())
 }
 
@@ -105,10 +92,7 @@ mod tests {
         };
         let events = vec![
             AgentEvent::AgentStart { context: ctx },
-            AgentEvent::AgentEnd {
-                finish_reason: "end_turn".to_string(),
-                messages: vec![],
-            },
+            AgentEvent::AgentEnd { finish_reason: "end_turn".to_string(), messages: vec![] },
         ];
         assert_event_sequence(&events, &["AgentStart", "AgentEnd"]);
     }

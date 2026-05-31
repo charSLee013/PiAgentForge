@@ -75,9 +75,7 @@ where
         match event {
             StreamEvent::TextDelta { delta } => text_parts.push(delta),
             StreamEvent::Error { error } => {
-                return Err(CompactionError::Stream(StreamError::ProviderError(
-                    error.message,
-                )));
+                return Err(CompactionError::Stream(StreamError::ProviderError(error.message)));
             }
             _ => {} // ignore Start, ThinkingDelta, ToolCallDelta, Done, Usage
         }
@@ -103,10 +101,7 @@ pub fn serialize_conversation(entries_text: &[String]) -> String {
 ///
 /// Calls the LLM via `call_llm_for_text` with the `SUMMARIZATION_PROMPT`
 /// and the serialized conversation entries.
-pub async fn generate_summary<F, Fut>(
-    entries_text: &[String],
-    stream_fn: F,
-) -> Result<String, CompactionError>
+pub async fn generate_summary<F, Fut>(entries_text: &[String], stream_fn: F) -> Result<String, CompactionError>
 where
     F: Fn(Context) -> Fut,
     Fut: Future<Output = Result<AssistantMessageEventStream, StreamError>>,

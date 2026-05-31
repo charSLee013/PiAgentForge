@@ -5,8 +5,8 @@
 //! Framing is LF-only. Each record is a single line terminated by `\n`.
 //! Clients must split records on `\n` only (not Unicode separators).
 
-use serde::de::DeserializeOwned;
 use serde::Serialize;
+use serde::de::DeserializeOwned;
 
 /// Serialize a value to a single JSONL record (with trailing `\n`).
 pub fn serialize_line(value: &impl Serialize) -> String {
@@ -30,16 +30,10 @@ mod tests {
 
     #[test]
     fn test_serialize_line_appends_newline() {
-        let payload = TestPayload {
-            value: "hello".to_string(),
-        };
+        let payload = TestPayload { value: "hello".to_string() };
         let line = serialize_line(&payload);
         assert!(line.ends_with('\n'), "line should end with newline");
-        assert_eq!(
-            line.trim_end_matches('\n'),
-            r#"{"value":"hello"}"#,
-            "serialized JSON should match"
-        );
+        assert_eq!(line.trim_end_matches('\n'), r#"{"value":"hello"}"#, "serialized JSON should match");
     }
 
     #[test]
@@ -66,9 +60,7 @@ mod tests {
 
     #[test]
     fn test_round_trip() {
-        let payload = TestPayload {
-            value: "world".to_string(),
-        };
+        let payload = TestPayload { value: "world".to_string() };
         let line = serialize_line(&payload);
         let back: TestPayload = deserialize_line(&line).unwrap();
         assert_eq!(payload, back);

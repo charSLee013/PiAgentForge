@@ -97,10 +97,7 @@ pub struct ImageContent {
 #[serde(tag = "type")]
 pub enum ImageSource {
     #[serde(rename = "base64")]
-    Base64 {
-        media_type: String,
-        data: String,
-    },
+    Base64 { media_type: String, data: String },
     #[serde(rename = "url")]
     Url { url: String },
 }
@@ -150,14 +147,7 @@ impl Message {
 
     /// Create a new assistant message.
     pub fn assistant(content: Vec<ContentBlock>) -> Self {
-        Self {
-            role: MessageRole::Assistant,
-            content,
-            id: None,
-            name: None,
-            usage: None,
-            redacted: false,
-        }
+        Self { role: MessageRole::Assistant, content, id: None, name: None, usage: None, redacted: false }
     }
 
     /// Create a new system message.
@@ -264,12 +254,7 @@ pub enum StreamEvent {
     #[serde(rename = "thinking_delta")]
     ThinkingDelta { delta: String },
     #[serde(rename = "tool_call_delta")]
-    ToolCallDelta {
-        index: u32,
-        id: Option<String>,
-        name: Option<String>,
-        arguments: Option<String>,
-    },
+    ToolCallDelta { index: u32, id: Option<String>, name: Option<String>, arguments: Option<String> },
     #[serde(rename = "usage")]
     Usage(Usage),
     #[serde(rename = "done")]
@@ -280,9 +265,7 @@ pub enum StreamEvent {
         stop_reason: Option<String>,
     },
     #[serde(rename = "error")]
-    Error {
-        error: StreamError,
-    },
+    Error { error: StreamError },
 }
 
 /// An error that occurred during streaming.
@@ -333,14 +316,8 @@ pub struct StreamOptions {
 pub fn calculate_cost(model: &Model, usage: &Usage) -> f64 {
     let input = usage.input as f64 * model.cost_per_input_token.unwrap_or(0.0);
     let output = usage.output as f64 * model.cost_per_output_token.unwrap_or(0.0);
-    let cache_read = usage
-        .cache_read
-        .unwrap_or(0) as f64
-        * model.cost_per_cache_read_token.unwrap_or(0.0);
-    let cache_write = usage
-        .cache_write
-        .unwrap_or(0) as f64
-        * model.cost_per_cache_write_token.unwrap_or(0.0);
+    let cache_read = usage.cache_read.unwrap_or(0) as f64 * model.cost_per_cache_read_token.unwrap_or(0.0);
+    let cache_write = usage.cache_write.unwrap_or(0) as f64 * model.cost_per_cache_write_token.unwrap_or(0.0);
     input + output + cache_read + cache_write
 }
 
@@ -362,9 +339,7 @@ mod tests {
 
     #[test]
     fn test_content_block_serde() {
-        let text = ContentBlock::Text(TextContent {
-            text: "hello".into(),
-        });
+        let text = ContentBlock::Text(TextContent { text: "hello".into() });
         let json = serde_json::to_string(&text).unwrap();
         assert!(json.contains("\"type\":\"text\""));
         let back: ContentBlock = serde_json::from_str(&json).unwrap();
@@ -391,22 +366,14 @@ mod tests {
             cost_per_cache_read_token: None,
             cost_per_cache_write_token: None,
         };
-        let usage = Usage {
-            input: 100,
-            output: 50,
-            cache_read: None,
-            cache_write: None,
-            total_tokens: None,
-        };
+        let usage = Usage { input: 100, output: 50, cache_read: None, cache_write: None, total_tokens: None };
         let cost = calculate_cost(&model, &usage);
         assert!((cost - 2.5).abs() < f64::EPSILON);
     }
 
     #[test]
     fn test_stream_event_serde() {
-        let event = StreamEvent::TextDelta {
-            delta: "Hello".into(),
-        };
+        let event = StreamEvent::TextDelta { delta: "Hello".into() };
         let json = serde_json::to_string(&event).unwrap();
         assert!(json.contains("\"type\":\"text_delta\""));
         let back: StreamEvent = serde_json::from_str(&json).unwrap();

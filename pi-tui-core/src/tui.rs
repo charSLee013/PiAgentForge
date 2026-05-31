@@ -52,12 +52,7 @@ pub struct OverlayOptions {
 
 impl Default for OverlayOptions {
     fn default() -> Self {
-        Self {
-            width: None,
-            height: None,
-            anchor: OverlayAnchor::Center,
-            visible: true,
-        }
+        Self { width: None, height: None, anchor: OverlayAnchor::Center, visible: true }
     }
 }
 
@@ -181,9 +176,7 @@ impl TUI {
             return Ok(());
         }
         let now = Instant::now();
-        if now.duration_since(self.last_render_at) < self.min_render_interval
-            && !self.previous_lines.is_empty()
-        {
+        if now.duration_since(self.last_render_at) < self.min_render_interval && !self.previous_lines.is_empty() {
             return Ok(());
         }
         self.render_requested = false;
@@ -192,8 +185,7 @@ impl TUI {
         let width = self.terminal.columns();
         let height = self.terminal.rows();
 
-        let width_changed =
-            self.previous_width != 0 && self.previous_width != width;
+        let width_changed = self.previous_width != 0 && self.previous_width != width;
         let first_render = self.previous_lines.is_empty();
 
         // 1. Render all components
@@ -215,11 +207,7 @@ impl TUI {
         let mut last_changed = -1i32;
 
         for i in 0..max_lines {
-            let old = self
-                .previous_lines
-                .get(i)
-                .map(|s| s.as_str())
-                .unwrap_or("");
+            let old = self.previous_lines.get(i).map(|s| s.as_str()).unwrap_or("");
             let new = new_lines.get(i).map(|s| s.as_str()).unwrap_or("");
             if old != new {
                 if first_changed < 0 {
@@ -246,13 +234,8 @@ impl TUI {
         buffer.push_str("\x1b[?2026h"); // begin synchronized output
 
         // Determine where to move the cursor
-        let append_start =
-            appended_lines && first_changed == self.previous_lines.len() as i32 && first_changed > 0;
-        let move_target = if append_start {
-            first_changed - 1
-        } else {
-            first_changed
-        };
+        let append_start = appended_lines && first_changed == self.previous_lines.len() as i32 && first_changed > 0;
+        let move_target = if append_start { first_changed - 1 } else { first_changed };
 
         // Vertical cursor movement
         let line_diff = move_target - self.hardware_cursor_row;
@@ -326,11 +309,7 @@ impl TUI {
         buffer.push_str("\x1b[?2026l"); // end synchronized output
         self.terminal.write(&buffer)?;
 
-        let cursor_row = if lines.is_empty() {
-            0i32
-        } else {
-            (lines.len() - 1) as i32
-        };
+        let cursor_row = if lines.is_empty() { 0i32 } else { (lines.len() - 1) as i32 };
         self.hardware_cursor_row = cursor_row;
         self.previous_lines = lines.to_vec();
         self.previous_width = self.terminal.columns();
@@ -346,20 +325,11 @@ impl TUI {
     /// Show an overlay component with the given options.
     ///
     /// Returns a unique overlay ID that can be passed to [`hide_overlay`].
-    pub fn show_overlay(
-        &mut self,
-        component: Box<dyn Component>,
-        options: OverlayOptions,
-    ) -> usize {
+    pub fn show_overlay(&mut self, component: Box<dyn Component>, options: OverlayOptions) -> usize {
         let id = self.next_overlay_id;
         self.next_overlay_id += 1;
 
-        self.overlays.push(OverlayEntry {
-            id,
-            component,
-            options,
-            hidden: false,
-        });
+        self.overlays.push(OverlayEntry { id, component, options, hidden: false });
 
         self.request_render();
         id
@@ -383,12 +353,7 @@ impl TUI {
     ///
     /// Each visible overlay is rendered at its calculated position and spliced
     /// into the result.
-    fn composite_overlays(
-        &self,
-        mut lines: Vec<String>,
-        term_width: u16,
-        term_height: u16,
-    ) -> Vec<String> {
+    fn composite_overlays(&self, mut lines: Vec<String>, term_width: u16, term_height: u16) -> Vec<String> {
         if self.overlays.is_empty() {
             return lines;
         }
@@ -410,23 +375,14 @@ impl TUI {
                 continue;
             }
 
-            let overlay_width = entry
-                .options
-                .width
-                .map(|w| w as usize)
-                .unwrap_or(tw.min(80));
+            let overlay_width = entry.options.width.map(|w| w as usize).unwrap_or(tw.min(80));
             let overlay_width = overlay_width.min(tw);
 
             let overlay_lines = entry.component.render(overlay_width as u16);
 
             // Position the overlay
-            let (row, col) = self.resolve_overlay_position(
-                entry.options.anchor,
-                overlay_lines.len(),
-                overlay_width,
-                tw,
-                th,
-            );
+            let (row, col) =
+                self.resolve_overlay_position(entry.options.anchor, overlay_lines.len(), overlay_width, tw, th);
 
             for (i, overlay_line) in overlay_lines.iter().enumerate() {
                 let idx = viewport_start + row + i;
@@ -484,11 +440,7 @@ impl TUI {
 
         // Final safety check: truncate if visible width exceeds total_width
         let rw = visible_width(&result);
-        if rw > total_width {
-            crate::utils::truncate_to_width(&result, total_width)
-        } else {
-            result
-        }
+        if rw > total_width { crate::utils::truncate_to_width(&result, total_width) } else { result }
     }
 
     /// Calculate the row and column for an overlay given its anchor and size.
@@ -503,16 +455,12 @@ impl TUI {
         let row = match anchor {
             OverlayAnchor::Center => term_height.saturating_sub(overlay_height) / 2,
             OverlayAnchor::TopLeft | OverlayAnchor::TopRight => 0,
-            OverlayAnchor::BottomLeft | OverlayAnchor::BottomRight => {
-                term_height.saturating_sub(overlay_height)
-            }
+            OverlayAnchor::BottomLeft | OverlayAnchor::BottomRight => term_height.saturating_sub(overlay_height),
         };
 
         let col = match anchor {
             OverlayAnchor::Center | OverlayAnchor::TopLeft | OverlayAnchor::BottomLeft => 0,
-            OverlayAnchor::TopRight | OverlayAnchor::BottomRight => {
-                term_width.saturating_sub(overlay_width)
-            }
+            OverlayAnchor::TopRight | OverlayAnchor::BottomRight => term_width.saturating_sub(overlay_width),
         };
 
         (row, col)
@@ -528,12 +476,7 @@ impl TUI {
     /// base-level children via the container.  Then requests a re-render.
     pub fn handle_input(&mut self, data: &str) {
         // Find the topmost visible overlay
-        if let Some(top) = self
-            .overlays
-            .iter_mut()
-            .filter(|o| !o.hidden && o.options.visible)
-            .last()
-        {
+        if let Some(top) = self.overlays.iter_mut().filter(|o| !o.hidden && o.options.visible).last() {
             top.component.handle_input(data);
         } else {
             // Forward to container children
@@ -598,9 +541,7 @@ mod tests {
     fn test_render_with_text_component() {
         let term = Terminal::new().expect("terminal size should be detectable");
         let mut tui = TUI::new(term);
-        tui.add(TestComponent {
-            lines: vec!["hello".to_string(), "world".to_string()],
-        });
+        tui.add(TestComponent { lines: vec!["hello".to_string(), "world".to_string()] });
         let result = tui.render();
         assert!(result.is_ok());
         assert_eq!(tui.previous_lines.len(), 2);
@@ -612,9 +553,7 @@ mod tests {
     fn test_incremental_render_no_change() {
         let term = Terminal::new().expect("terminal size should be detectable");
         let mut tui = TUI::new(term);
-        tui.add(TestComponent {
-            lines: vec!["hello".to_string()],
-        });
+        tui.add(TestComponent { lines: vec!["hello".to_string()] });
 
         // First render populates previous_lines
         assert!(tui.render().is_ok());
@@ -632,9 +571,7 @@ mod tests {
     fn test_force_render_resets_state() {
         let term = Terminal::new().expect("terminal size should be detectable");
         let mut tui = TUI::new(term);
-        tui.add(TestComponent {
-            lines: vec!["hello".to_string()],
-        });
+        tui.add(TestComponent { lines: vec!["hello".to_string()] });
 
         assert!(tui.render().is_ok());
         assert!(!tui.previous_lines.is_empty());
@@ -649,16 +586,10 @@ mod tests {
     fn test_show_overlay_then_render() {
         let term = Terminal::new().expect("terminal size should be detectable");
         let mut tui = TUI::new(term);
-        tui.add(TestComponent {
-            lines: vec!["base".to_string()],
-        });
+        tui.add(TestComponent { lines: vec!["base".to_string()] });
 
-        let id = tui.show_overlay(
-            Box::new(TestComponent {
-                lines: vec!["overlay".to_string()],
-            }),
-            OverlayOptions::default(),
-        );
+        let id =
+            tui.show_overlay(Box::new(TestComponent { lines: vec!["overlay".to_string()] }), OverlayOptions::default());
 
         assert!(tui.has_overlay());
 

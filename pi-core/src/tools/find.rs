@@ -5,7 +5,7 @@
 
 use crate::io::{DefaultFileSystem, FileSystem, IoError};
 use crate::tools::path_utils::resolve_to_cwd;
-use crate::tools::truncate::{self, format_size, TruncationOptions, TruncationResult, DEFAULT_MAX_BYTES};
+use crate::tools::truncate::{self, DEFAULT_MAX_BYTES, TruncationOptions, TruncationResult, format_size};
 use globset::{Glob, GlobSet, GlobSetBuilder};
 use std::path::{Path, PathBuf};
 
@@ -78,11 +78,7 @@ pub async fn execute_find(input: &FindInput, cwd: &Path) -> Result<FindResult, F
 }
 
 /// Find files by glob pattern with a custom filesystem (for testing).
-pub async fn execute_find_with(
-    input: &FindInput,
-    cwd: &Path,
-    fs: &dyn FileSystem,
-) -> Result<FindResult, FindError> {
+pub async fn execute_find_with(input: &FindInput, cwd: &Path, fs: &dyn FileSystem) -> Result<FindResult, FindError> {
     let search_path = resolve_to_cwd(input.path.as_deref().unwrap_or("."), cwd);
 
     tracing::debug!(
@@ -109,24 +105,14 @@ pub async fn execute_find_with(
     }
 
     // Relativize paths.
-    let relativized: Vec<String> = results
-        .iter()
-        .map(|p| {
-            p.strip_prefix(&search_path)
-                .unwrap_or(p)
-                .display()
-                .to_string()
-        })
-        .collect();
+    let relativized: Vec<String> =
+        results.iter().map(|p| p.strip_prefix(&search_path).unwrap_or(p).display().to_string()).collect();
 
     let raw_output = relativized.join("\n");
     let result_limit_reached = relativized.len() >= effective_limit;
 
     // Apply byte truncation.
-    let trunc_opts = TruncationOptions {
-        max_lines: usize::MAX,
-        max_bytes: DEFAULT_MAX_BYTES,
-    };
+    let trunc_opts = TruncationOptions { max_lines: usize::MAX, max_bytes: DEFAULT_MAX_BYTES };
     let trunc = truncate::truncate_head(&raw_output, trunc_opts);
 
     let mut final_output = trunc.content.clone();
@@ -150,11 +136,7 @@ pub async fn execute_find_with(
     Ok(FindResult {
         output: final_output,
         truncation: details_truncation,
-        result_limit_reached: if result_limit_reached {
-            Some(effective_limit)
-        } else {
-            None
-        },
+        result_limit_reached: if result_limit_reached { Some(effective_limit) } else { None },
     })
 }
 
@@ -247,11 +229,7 @@ mod tests {
         fs.write(&dir_path.join("c.txt"), b"text").await.unwrap();
 
         let result = execute_find(
-            &FindInput {
-                pattern: "*.rs".to_string(),
-                path: Some(".".to_string()),
-                limit: None,
-            },
+            &FindInput { pattern: "*.rs".to_string(), path: Some(".".to_string()), limit: None },
             &dir_path,
         )
         .await
@@ -265,16 +243,9 @@ mod tests {
     #[tokio::test]
     async fn test_find_no_matches_with_tempdir() {
         let dir = tempfile::tempdir().unwrap();
-        let result = execute_find(
-            &FindInput {
-                pattern: "*.py".to_string(),
-                path: None,
-                limit: None,
-            },
-            dir.path(),
-        )
-        .await
-        .unwrap();
+        let result = execute_find(&FindInput { pattern: "*.py".to_string(), path: None, limit: None }, dir.path())
+            .await
+            .unwrap();
         assert_eq!(result.output, "No files found matching pattern");
     }
 
@@ -283,11 +254,7 @@ mod tests {
         let mock = MockFileSystem::new();
         let cwd = PathBuf::from("/test/cwd");
         let result = execute_find_with(
-            &FindInput {
-                pattern: "*.rs".to_string(),
-                path: Some("/nonexistent".to_string()),
-                limit: None,
-            },
+            &FindInput { pattern: "*.rs".to_string(), path: Some("/nonexistent".to_string()), limit: None },
             &cwd,
             &mock,
         )

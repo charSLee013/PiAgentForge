@@ -21,13 +21,7 @@ pub struct OutputAccumulator {
 
 impl OutputAccumulator {
     pub fn new(max_bytes: usize) -> Self {
-        Self {
-            chunks: Vec::new(),
-            total_bytes: 0,
-            max_bytes,
-            truncated: false,
-            full_output_path: None,
-        }
+        Self { chunks: Vec::new(), total_bytes: 0, max_bytes, truncated: false, full_output_path: None }
     }
 
     /// Append a chunk of output data.
@@ -43,9 +37,7 @@ impl OutputAccumulator {
         }
 
         let chunk_len = chunk.len();
-        if self.full_output_path.is_none()
-            && self.total_bytes + chunk_len > self.max_bytes
-        {
+        if self.full_output_path.is_none() && self.total_bytes + chunk_len > self.max_bytes {
             // Spill to temp file
             let pid = std::process::id();
             let tmp = std::env::temp_dir().join(format!("pi-output-{}.log", pid));

@@ -71,12 +71,8 @@ impl SelectList {
             self.filtered_items = self.items.clone();
         } else {
             let q = filter.to_lowercase();
-            self.filtered_items = self
-                .items
-                .iter()
-                .filter(|item| item.label.to_lowercase().contains(&q))
-                .cloned()
-                .collect();
+            self.filtered_items =
+                self.items.iter().filter(|item| item.label.to_lowercase().contains(&q)).cloned().collect();
         }
         self.selected_index = 0;
     }
@@ -157,21 +153,15 @@ impl Component for SelectList {
             if self.filtered_items.is_empty() {
                 return;
             }
-            self.selected_index = if self.selected_index == 0 {
-                self.filtered_items.len() - 1
-            } else {
-                self.selected_index - 1
-            };
+            self.selected_index =
+                if self.selected_index == 0 { self.filtered_items.len() - 1 } else { self.selected_index - 1 };
             self.notify_selection_change();
         } else if matches_key(&event, "down") {
             if self.filtered_items.is_empty() {
                 return;
             }
-            self.selected_index = if self.selected_index == self.filtered_items.len() - 1 {
-                0
-            } else {
-                self.selected_index + 1
-            };
+            self.selected_index =
+                if self.selected_index == self.filtered_items.len() - 1 { 0 } else { self.selected_index + 1 };
             self.notify_selection_change();
         } else if matches_key(&event, "enter") {
             if let Some(item) = self.filtered_items.get(self.selected_index).cloned() {
@@ -210,11 +200,7 @@ impl SelectList {
                 let truncated_label = truncate_to_width(&item.label, label_w);
                 let truncated_desc = truncate_to_width(desc, max_desc);
                 let label_vis = visible_width(&truncated_label);
-                let padding = if label_vis < label_w {
-                    " ".repeat(label_w - label_vis)
-                } else {
-                    String::new()
-                };
+                let padding = if label_vis < label_w { " ".repeat(label_w - label_vis) } else { String::new() };
                 let spacer = " ".repeat(gap);
 
                 if is_selected {
@@ -256,16 +242,8 @@ mod tests {
     #[test]
     fn test_select_list_renders_items() {
         let items = vec![
-            SelectItem {
-                value: "a".into(),
-                label: "Apple".into(),
-                description: None,
-            },
-            SelectItem {
-                value: "b".into(),
-                label: "Banana".into(),
-                description: None,
-            },
+            SelectItem { value: "a".into(), label: "Apple".into(), description: None },
+            SelectItem { value: "b".into(), label: "Banana".into(), description: None },
         ];
         let list = SelectList::new(items, 10, test_theme());
         let lines = list.render(80);
@@ -279,16 +257,8 @@ mod tests {
     #[test]
     fn test_select_list_highlights_selection() {
         let items = vec![
-            SelectItem {
-                value: "a".into(),
-                label: "Apple".into(),
-                description: None,
-            },
-            SelectItem {
-                value: "b".into(),
-                label: "Banana".into(),
-                description: None,
-            },
+            SelectItem { value: "a".into(), label: "Apple".into(), description: None },
+            SelectItem { value: "b".into(), label: "Banana".into(), description: None },
         ];
         let list = SelectList::new(items, 10, test_theme());
         let lines = list.render(80);
@@ -308,21 +278,9 @@ mod tests {
     #[test]
     fn test_select_list_set_filter() {
         let items = vec![
-            SelectItem {
-                value: "a".into(),
-                label: "Apple".into(),
-                description: None,
-            },
-            SelectItem {
-                value: "b".into(),
-                label: "Banana".into(),
-                description: None,
-            },
-            SelectItem {
-                value: "c".into(),
-                label: "Cherry".into(),
-                description: None,
-            },
+            SelectItem { value: "a".into(), label: "Apple".into(), description: None },
+            SelectItem { value: "b".into(), label: "Banana".into(), description: None },
+            SelectItem { value: "c".into(), label: "Cherry".into(), description: None },
         ];
         let mut list = SelectList::new(items, 10, test_theme());
         list.set_filter("ap");
@@ -334,16 +292,8 @@ mod tests {
     #[test]
     fn test_select_list_filter_empty_shows_all() {
         let items = vec![
-            SelectItem {
-                value: "a".into(),
-                label: "Apple".into(),
-                description: None,
-            },
-            SelectItem {
-                value: "b".into(),
-                label: "Banana".into(),
-                description: None,
-            },
+            SelectItem { value: "a".into(), label: "Apple".into(), description: None },
+            SelectItem { value: "b".into(), label: "Banana".into(), description: None },
         ];
         let mut list = SelectList::new(items.clone(), 10, test_theme());
         list.set_filter("");
@@ -352,13 +302,7 @@ mod tests {
 
     #[test]
     fn test_select_list_filter_no_match() {
-        let items = vec![
-            SelectItem {
-                value: "a".into(),
-                label: "Apple".into(),
-                description: None,
-            },
-        ];
+        let items = vec![SelectItem { value: "a".into(), label: "Apple".into(), description: None }];
         let mut list = SelectList::new(items, 10, test_theme());
         list.set_filter("zzz");
         assert_eq!(list.filtered_count(), 0);
@@ -369,16 +313,8 @@ mod tests {
     #[test]
     fn test_select_list_selected_item() {
         let items = vec![
-            SelectItem {
-                value: "a".into(),
-                label: "Apple".into(),
-                description: None,
-            },
-            SelectItem {
-                value: "b".into(),
-                label: "Banana".into(),
-                description: None,
-            },
+            SelectItem { value: "a".into(), label: "Apple".into(), description: None },
+            SelectItem { value: "b".into(), label: "Banana".into(), description: None },
         ];
         let list = SelectList::new(items, 10, test_theme());
         assert_eq!(list.selected_item().unwrap().value, "a");
@@ -387,11 +323,7 @@ mod tests {
     #[test]
     fn test_select_list_scroll_indicator() {
         let items: Vec<SelectItem> = (0..20)
-            .map(|i| SelectItem {
-                value: format!("v{}", i),
-                label: format!("Item {}", i),
-                description: None,
-            })
+            .map(|i| SelectItem { value: format!("v{}", i), label: format!("Item {}", i), description: None })
             .collect();
         let list = SelectList::new(items, 5, test_theme());
         let lines = list.render(80);
@@ -403,16 +335,8 @@ mod tests {
     #[test]
     fn test_select_list_handle_navigation() {
         let items = vec![
-            SelectItem {
-                value: "a".into(),
-                label: "Apple".into(),
-                description: None,
-            },
-            SelectItem {
-                value: "b".into(),
-                label: "Banana".into(),
-                description: None,
-            },
+            SelectItem { value: "a".into(), label: "Apple".into(), description: None },
+            SelectItem { value: "b".into(), label: "Banana".into(), description: None },
         ];
         let mut list = SelectList::new(items, 10, test_theme());
         assert_eq!(list.selected_index, 0);

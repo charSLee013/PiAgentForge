@@ -7,6 +7,14 @@ use clap::Parser;
 #[derive(Parser, Debug, Clone)]
 #[command(name = "pi", version, about)]
 pub struct Args {
+    /// Continue the most recent session
+    #[arg(long = "continue", short = 'c')]
+    pub continue_recent: bool,
+
+    /// Open a session selector to resume a session
+    #[arg(long, short = 'r')]
+    pub resume: bool,
+
     /// Provider to use (e.g., "openai", "anthropic")
     #[arg(long, short = 'p')]
     pub provider: Option<String>,
@@ -30,6 +38,22 @@ pub struct Args {
     /// Enable thinking mode
     #[arg(long)]
     pub thinking: bool,
+
+    /// Thinking level to use: off, minimal, low, medium, high, xhigh
+    #[arg(long, value_name = "LEVEL")]
+    pub thinking_level: Option<String>,
+
+    /// Comma-separated allowlist of built-in tools to enable
+    #[arg(long, value_delimiter = ',', value_name = "TOOL", conflicts_with_all = ["no_tools", "no_builtin_tools"])]
+    pub tools: Option<Vec<String>>,
+
+    /// Disable all tools
+    #[arg(long)]
+    pub no_tools: bool,
+
+    /// Disable built-in tools
+    #[arg(long)]
+    pub no_builtin_tools: bool,
 
     /// Interactive mode
     #[arg(long)]
@@ -55,9 +79,29 @@ pub struct Args {
     #[arg(long)]
     pub session: Option<String>,
 
-    /// Fork the current session
+    /// Fork a specific session path or ID into a new session
+    #[arg(
+        long,
+        value_name = "PATH|ID",
+        conflicts_with_all = ["session", "continue_recent", "resume", "no_session"]
+    )]
+    pub fork: Option<String>,
+
+    /// Session storage directory
     #[arg(long)]
-    pub fork: bool,
+    pub session_dir: Option<String>,
+
+    /// Run without session persistence
+    #[arg(long)]
+    pub no_session: bool,
+
+    /// Export a session JSONL file to HTML
+    #[arg(long, value_name = "PATH|ID")]
+    pub export: Option<String>,
+
+    /// Force verbose startup logging
+    #[arg(long)]
+    pub verbose: bool,
 
     /// Login to an OAuth provider ("anthropic", "github-copilot", "openai-codex")
     #[arg(long, value_name = "PROVIDER")]

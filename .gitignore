@@ -1,3 +1,5 @@
 /target
+.codex/
+artifacts/
 **/*.rs.bk
 .git.broken-worktree-pointer.bak

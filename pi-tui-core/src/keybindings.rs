@@ -8,7 +8,7 @@
 
 use std::collections::HashMap;
 
-use crate::keys::{matches_key, KeyEvent};
+use crate::keys::{KeyEvent, matches_key};
 
 /// A named action triggered by a keybinding, e.g. `"submit"`, `"cancel"`.
 pub type KeyAction = String;
@@ -25,9 +25,7 @@ pub struct Keybindings {
 impl Keybindings {
     /// Create an empty keybinding set.
     pub fn new() -> Self {
-        Self {
-            bindings: HashMap::new(),
-        }
+        Self { bindings: HashMap::new() }
     }
 
     /// Register a keybinding.
@@ -147,9 +145,7 @@ impl Default for Keybindings {
 
 impl Clone for Keybindings {
     fn clone(&self) -> Self {
-        Self {
-            bindings: self.bindings.clone(),
-        }
+        Self { bindings: self.bindings.clone() }
     }
 }
 
@@ -159,10 +155,7 @@ mod tests {
     use crate::keys::{KeyCode, KeyModifiers};
 
     fn make_event(code: KeyCode, ctrl: bool, alt: bool, shift: bool) -> KeyEvent {
-        KeyEvent {
-            code,
-            modifiers: KeyModifiers { ctrl, alt, shift },
-        }
+        KeyEvent { code, modifiers: KeyModifiers { ctrl, alt, shift } }
     }
 
     #[test]

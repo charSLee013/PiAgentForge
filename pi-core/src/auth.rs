@@ -122,14 +122,10 @@ impl AuthStorage {
                 let mut buf = String::new();
                 (&file).read_to_string(&mut buf)?;
                 // Lock released when `file` is dropped.
-                let credentials: HashMap<String, CredentialEntry> =
-                    serde_json::from_str(&buf)?;
+                let credentials: HashMap<String, CredentialEntry> = serde_json::from_str(&buf)?;
                 Ok(Self { path, credentials })
             }
-            Err(_) => Ok(Self {
-                path,
-                credentials: HashMap::new(),
-            }),
+            Err(_) => Ok(Self { path, credentials: HashMap::new() }),
         }
     }
 
@@ -167,12 +163,7 @@ impl AuthStorage {
 
     /// Set a static API key for `provider`.
     pub fn set_api_key(&mut self, provider: &str, key: &str) {
-        self.credentials.insert(
-            provider.to_string(),
-            CredentialEntry::ApiKey {
-                key: key.to_string(),
-            },
-        );
+        self.credentials.insert(provider.to_string(), CredentialEntry::ApiKey { key: key.to_string() });
     }
 
     /// Set OAuth credentials for `provider`.
@@ -239,10 +230,7 @@ mod tests {
     #[test]
     fn test_set_and_get_api_key_entry() {
         let (_td, path) = scratch_path();
-        let mut storage = AuthStorage {
-            path,
-            credentials: HashMap::new(),
-        };
+        let mut storage = AuthStorage { path, credentials: HashMap::new() };
 
         storage.set_api_key("openai", "sk-test-123");
         assert_eq!(storage.get_api_key("openai"), Some("sk-test-123".into()));
@@ -252,10 +240,7 @@ mod tests {
     #[test]
     fn test_remove_credential() {
         let (_td, path) = scratch_path();
-        let mut storage = AuthStorage {
-            path,
-            credentials: HashMap::new(),
-        };
+        let mut storage = AuthStorage { path, credentials: HashMap::new() };
 
         storage.set_api_key("openai", "sk-test");
         assert!(storage.has("openai"));
@@ -266,10 +251,7 @@ mod tests {
     #[test]
     fn test_providers_list_is_sorted() {
         let (_td, path) = scratch_path();
-        let mut storage = AuthStorage {
-            path,
-            credentials: HashMap::new(),
-        };
+        let mut storage = AuthStorage { path, credentials: HashMap::new() };
 
         storage.set_api_key("z-provider", "z-key");
         storage.set_api_key("a-provider", "a-key");
@@ -282,10 +264,7 @@ mod tests {
     #[test]
     fn test_oauth_entry_api_key_returns_access_token() {
         let (_td, path) = scratch_path();
-        let mut storage = AuthStorage {
-            path,
-            credentials: HashMap::new(),
-        };
+        let mut storage = AuthStorage { path, credentials: HashMap::new() };
 
         storage.set_oauth("anthropic", "ant-access", Some("ant-refresh".into()), Some(9999999999), "Bearer", None);
         assert_eq!(storage.get_api_key("anthropic"), Some("ant-access".into()));
@@ -294,10 +273,7 @@ mod tests {
     #[test]
     fn test_get_api_key_nonexistent_provider() {
         let (_td, path) = scratch_path();
-        let storage = AuthStorage {
-            path,
-            credentials: HashMap::new(),
-        };
+        let storage = AuthStorage { path, credentials: HashMap::new() };
         assert_eq!(storage.get_api_key("nonexistent"), None);
     }
 
@@ -306,18 +282,14 @@ mod tests {
     #[test]
     fn test_save_writes_correct_json() {
         let (_td, path) = scratch_path();
-        let mut storage = AuthStorage {
-            path: path.clone(),
-            credentials: HashMap::new(),
-        };
+        let mut storage = AuthStorage { path: path.clone(), credentials: HashMap::new() };
 
         storage.set_api_key("openai", "sk-save-test");
         storage.save().expect("save should succeed");
 
         // Read the raw file and verify structure.
         let content = fs::read_to_string(&path).expect("file should exist after save");
-        let parsed: HashMap<String, CredentialEntry> =
-            serde_json::from_str(&content).expect("valid JSON");
+        let parsed: HashMap<String, CredentialEntry> = serde_json::from_str(&content).expect("valid JSON");
         assert_eq!(parsed.len(), 1);
         match parsed.get("openai").unwrap() {
             CredentialEntry::ApiKey { key } => assert_eq!(key, "sk-save-test"),
@@ -348,10 +320,7 @@ mod tests {
     fn test_save_and_load_roundtrip() {
         let (_td, path) = scratch_path();
         {
-            let mut storage = AuthStorage {
-                path: path.clone(),
-                credentials: HashMap::new(),
-            };
+            let mut storage = AuthStorage { path: path.clone(), credentials: HashMap::new() };
             storage.set_api_key("openai", "sk-roundtrip");
             storage.set_oauth(
                 "anthropic",
@@ -367,13 +336,7 @@ mod tests {
         let storage = AuthStorage::load_from(path).expect("reload");
         assert_eq!(storage.get_api_key("openai"), Some("sk-roundtrip".into()));
         match storage.credentials.get("anthropic").unwrap() {
-            CredentialEntry::OAuth {
-                access_token,
-                refresh_token,
-                expires_at,
-                token_type,
-                ..
-            } => {
+            CredentialEntry::OAuth { access_token, refresh_token, expires_at, token_type, .. } => {
                 assert_eq!(access_token, "ant-access-token");
                 assert_eq!(refresh_token.as_deref(), Some("ant-refresh-token"));
                 assert_eq!(*expires_at, Some(9999999999));

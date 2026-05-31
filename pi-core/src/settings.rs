@@ -170,10 +170,7 @@ mod tests {
             assert_eq!(loaded.default_model.as_deref(), Some("gpt-4o"));
             assert_eq!(loaded.default_provider.as_deref(), Some("openai"));
             assert_eq!(loaded.theme.as_deref(), Some("dark"));
-            assert_eq!(
-                loaded.base_url.as_deref(),
-                Some("https://custom.api.com/v1")
-            );
+            assert_eq!(loaded.base_url.as_deref(), Some("https://custom.api.com/v1"));
             assert_eq!(loaded.api_key.as_deref(), Some("sk-custom-key"));
         }
     }
@@ -226,10 +223,7 @@ mod tests {
         fs::write(&path, json).expect("write sample");
 
         let settings = Settings::load_from(path).expect("load");
-        assert_eq!(
-            settings.base_url.as_deref(),
-            Some("https://custom.api.com/v1")
-        );
+        assert_eq!(settings.base_url.as_deref(), Some("https://custom.api.com/v1"));
     }
 
     #[test]

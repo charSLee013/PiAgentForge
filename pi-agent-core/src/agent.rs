@@ -4,14 +4,12 @@
 //! hooks — mirroring the TypeScript `Agent` class in packages/agent/src/agent.ts.
 
 use crate::agent_loop::{self, AgentError};
-use crate::hook::{
-    AfterToolCallContext, AfterToolHook, BeforeToolCallContext, BeforeToolHook,
-};
+use crate::hook::{AfterToolCallContext, AfterToolHook, BeforeToolCallContext, BeforeToolHook};
 use crate::queue::{MessageQueue, QueueMode};
 use crate::types::{AgentContext, AgentEvent, AgentState, AgentToolResult};
 use pi_ai_core::event_stream::AssistantMessageEventStream;
 use pi_ai_core::stream::StreamError;
-use pi_ai_core::types::{Context, ContentBlock, Message, TextContent};
+use pi_ai_core::types::{ContentBlock, Context, Message, TextContent};
 use std::collections::HashMap;
 use std::future::Future;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -85,24 +83,34 @@ impl Agent {
     }
 
     pub fn unsubscribe(&mut self, token: u64) -> bool {
-        if let Ok(mut list) = self.listeners.write() {
-            list.remove(&token).is_some()
-        } else {
-            false
-        }
+        if let Ok(mut list) = self.listeners.write() { list.remove(&token).is_some() } else { false }
     }
 
-    pub fn steer(&mut self, message: Message) { self.steering_queue.enqueue(message); }
-    pub fn follow_up(&mut self, message: Message) { self.follow_up_queue.enqueue(message); }
-    pub fn abort(&self) { self.cancel.cancel(); }
-    pub fn is_streaming(&self) -> bool { self.is_streaming.load(Ordering::SeqCst) }
+    pub fn steer(&mut self, message: Message) {
+        self.steering_queue.enqueue(message);
+    }
+    pub fn follow_up(&mut self, message: Message) {
+        self.follow_up_queue.enqueue(message);
+    }
+    pub fn abort(&self) {
+        self.cancel.cancel();
+    }
+    pub fn is_streaming(&self) -> bool {
+        self.is_streaming.load(Ordering::SeqCst)
+    }
     pub fn has_queued_messages(&self) -> bool {
         self.steering_queue.has_items() || self.follow_up_queue.has_items()
     }
-    pub fn state(&self) -> &AgentState { &self.state }
-    pub fn state_mut(&mut self) -> &mut AgentState { &mut self.state }
+    pub fn state(&self) -> &AgentState {
+        &self.state
+    }
+    pub fn state_mut(&mut self) -> &mut AgentState {
+        &mut self.state
+    }
 
-    fn reset_cancel(&mut self) { self.cancel = CancellationToken::new(); }
+    fn reset_cancel(&mut self) {
+        self.cancel = CancellationToken::new();
+    }
 
     // ── Run ─────────────────────────────────────────────────────────────────
 
@@ -110,11 +118,7 @@ impl Agent {
     ///
     /// Resets `is_streaming` on error. Allocates a fresh CancellationToken
     /// per run so `abort()` does not permanently brick the instance.
-    pub async fn run<F, Fut, G>(
-        &mut self,
-        stream_fn: F,
-        tool_executor: G,
-    ) -> Result<(), AgentError>
+    pub async fn run<F, Fut, G>(&mut self, stream_fn: F, tool_executor: G) -> Result<(), AgentError>
     where
         F: Fn(Context) -> Fut,
         Fut: Future<Output = Result<AssistantMessageEventStream, StreamError>>,
@@ -127,11 +131,7 @@ impl Agent {
         result
     }
 
-    async fn run_inner<F, Fut, G>(
-        &mut self,
-        stream_fn: F,
-        tool_executor: G,
-    ) -> Result<(), AgentError>
+    async fn run_inner<F, Fut, G>(&mut self, stream_fn: F, tool_executor: G) -> Result<(), AgentError>
     where
         F: Fn(Context) -> Fut,
         Fut: Future<Output = Result<AssistantMessageEventStream, StreamError>>,
@@ -159,14 +159,16 @@ impl Agent {
         }
 
         // Create per-turn polling closures (FnMut, capture &mut Queue).
-        let mut steer_fn = || steer_queue.drain();
-        let mut follow_fn = || follow_queue.drain();
+        let steer_fn = || steer_queue.drain();
+        let follow_fn = || follow_queue.drain();
 
         // Build the event sink from listeners
         let listeners = self.listeners.clone();
         let event_sink = move |event: AgentEvent| {
             if let Ok(list) = listeners.read() {
-                for l in list.values() { l(event.clone()); }
+                for l in list.values() {
+                    l(event.clone());
+                }
             }
         };
 
@@ -179,11 +181,12 @@ impl Agent {
             move |name: &str, id: &str, args: &serde_json::Value| exec_for_loop.as_ref()(name, id, args),
             event_sink,
             self.cancel.clone(),
-            Some(&mut steer_fn),
-            Some(&mut follow_fn),
+            Some(steer_fn),
+            Some(follow_fn),
             false, // parallel
             Some(&self.last_assistant),
-        ).await
+        )
+        .await
     }
 }
 
@@ -204,10 +207,7 @@ where
         // ── before_tool_call hook ──────────────────────────────────────
         if let Some(ref hook) = before {
             if let Ok(mut guard) = hook.lock() {
-                let msg = last_assistant.lock()
-                    .ok()
-                    .and_then(|g| g.clone())
-                    .unwrap_or_else(|| Message::user_text(""));
+                let msg = last_assistant.lock().ok().and_then(|g| g.clone()).unwrap_or_else(|| Message::user_text(""));
                 let ctx = BeforeToolCallContext {
                     message: msg,
                     tool_name: name.to_string(),
@@ -245,10 +245,8 @@ where
         if let Some(ref hook) = after {
             if let Ok(mut guard) = hook.lock() {
                 if let Ok(tr) = &tool_result {
-                    let msg = last_assistant.lock()
-                        .ok()
-                        .and_then(|g| g.clone())
-                        .unwrap_or_else(|| Message::user_text(""));
+                    let msg =
+                        last_assistant.lock().ok().and_then(|g| g.clone()).unwrap_or_else(|| Message::user_text(""));
                     let ctx = AfterToolCallContext {
                         message: msg,
                         tool_name: name.to_string(),

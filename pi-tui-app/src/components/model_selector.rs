@@ -3,12 +3,12 @@
 //! Shows a searchable list of available models with provider badges.
 //! Supports scoped/all view toggle.
 
+use crate::Theme;
 use pi_tui_core::component::Component;
 use pi_tui_core::components::input::Input;
 use pi_tui_core::fuzzy::fuzzy_filter;
 use pi_tui_core::keys::{matches_key, parse_key};
 use pi_tui_core::utils::truncate_to_width;
-use crate::Theme;
 
 type ModelSelectCallback = Box<dyn FnMut(&str, &str) + Send>;
 
@@ -50,11 +50,7 @@ impl ModelSelector {
     /// * `all_models` — all available models.
     /// * `scoped_models` — models scoped to the current context (empty = no scoping).
     /// * `theme` — application theme.
-    pub fn new(
-        all_models: Vec<ModelEntry>,
-        scoped_models: Vec<ModelEntry>,
-        theme: &Theme,
-    ) -> Self {
+    pub fn new(all_models: Vec<ModelEntry>, scoped_models: Vec<ModelEntry>, theme: &Theme) -> Self {
         let has_scoped = !scoped_models.is_empty();
         let scope = if has_scoped { ModelScope::Scoped } else { ModelScope::All };
         let active = if has_scoped { scoped_models.clone() } else { all_models.clone() };
@@ -83,7 +79,9 @@ impl ModelSelector {
     }
 
     fn toggle_scope(&mut self) {
-        if !self.has_scoped { return; }
+        if !self.has_scoped {
+            return;
+        }
         self.scope = match self.scope {
             ModelScope::All => ModelScope::Scoped,
             ModelScope::Scoped => ModelScope::All,
@@ -102,14 +100,9 @@ impl ModelSelector {
             self.filtered_models = self.active_models.clone();
         } else {
             let results = fuzzy_filter(query, &self.active_models.iter().map(|m| &m.id).collect::<Vec<_>>());
-            self.filtered_models = results
-                .iter()
-                .map(|(idx, _)| self.active_models[*idx].clone())
-                .collect();
+            self.filtered_models = results.iter().map(|(idx, _)| self.active_models[*idx].clone()).collect();
         }
-        self.selected_index = self
-            .selected_index
-            .min(self.filtered_models.len().saturating_sub(1));
+        self.selected_index = self.selected_index.min(self.filtered_models.len().saturating_sub(1));
     }
 }
 
@@ -169,11 +162,8 @@ impl Component for ModelSelector {
 
             let id_truncated = truncate_to_width(&model.id, w.saturating_sub(30));
             let badge = format!("[{}]", model.provider);
-            let check = if model.is_current {
-                self.theme.ansi(&self.theme.success, " \u{2713}")
-            } else {
-                String::new()
-            };
+            let check =
+                if model.is_current { self.theme.ansi(&self.theme.success, " \u{2713}") } else { String::new() };
             let badge_muted = self.theme.ansi(&self.theme.muted, &badge);
 
             if is_selected {
@@ -187,8 +177,7 @@ impl Component for ModelSelector {
 
         // Scroll indicator
         if start > 0 || end < total {
-            let scroll = self.theme.ansi(&self.theme.muted,
-                &format!("  ({}/{})", self.selected_index + 1, total));
+            let scroll = self.theme.ansi(&self.theme.muted, &format!("  ({}/{})", self.selected_index + 1, total));
             lines.push(scroll);
         }
 
@@ -204,19 +193,17 @@ impl Component for ModelSelector {
         }
 
         if matches_key(&event, "up") {
-            if self.filtered_models.is_empty() { return; }
-            self.selected_index = if self.selected_index == 0 {
-                self.filtered_models.len() - 1
-            } else {
-                self.selected_index - 1
-            };
+            if self.filtered_models.is_empty() {
+                return;
+            }
+            self.selected_index =
+                if self.selected_index == 0 { self.filtered_models.len() - 1 } else { self.selected_index - 1 };
         } else if matches_key(&event, "down") {
-            if self.filtered_models.is_empty() { return; }
-            self.selected_index = if self.selected_index == self.filtered_models.len() - 1 {
-                0
-            } else {
-                self.selected_index + 1
-            };
+            if self.filtered_models.is_empty() {
+                return;
+            }
+            self.selected_index =
+                if self.selected_index == self.filtered_models.len() - 1 { 0 } else { self.selected_index + 1 };
         } else if matches_key(&event, "enter") {
             if let Some(m) = self.filtered_models.get(self.selected_index).cloned() {
                 if let Some(ref mut cb) = self.on_select {
@@ -248,7 +235,12 @@ mod tests {
     fn test_model_selector_renders_models() {
         let theme = Theme::dark();
         let models = vec![
-            ModelEntry { provider: "anthropic".into(), id: "claude-3-opus".into(), is_current: true, name: "Claude 3 Opus".into() },
+            ModelEntry {
+                provider: "anthropic".into(),
+                id: "claude-3-opus".into(),
+                is_current: true,
+                name: "Claude 3 Opus".into(),
+            },
             ModelEntry { provider: "openai".into(), id: "gpt-4".into(), is_current: false, name: "GPT-4".into() },
         ];
         let selector = ModelSelector::new(models, vec![], &theme);

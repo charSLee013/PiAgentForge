@@ -8,9 +8,9 @@ use std::thread;
 use std::time::Duration;
 
 use notify::{Config, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
+use pi_tui_core::MarkdownTheme;
 use pi_tui_core::components::select_list::SelectListTheme;
 use pi_tui_core::components::settings_list::SettingsListTheme;
-use pi_tui_core::MarkdownTheme;
 
 // ============================================================================
 // Helpers
@@ -323,12 +323,12 @@ impl Theme {
             // heading colour + bold for levels 1-3, colour-only for 4-6
             let base = ansi_fg_prefix(heading);
             vec![
-                leak(format!("{base}\x1b[1m")),   // H1: colour + bold
-                leak(format!("{base}\x1b[1m")),   // H2
-                leak(format!("{base}\x1b[1m")),   // H3
-                leak(base.clone()),                // H4: colour only
-                leak(base.clone()),                // H5
-                leak(base),                       // H6
+                leak(format!("{base}\x1b[1m")), // H1: colour + bold
+                leak(format!("{base}\x1b[1m")), // H2
+                leak(format!("{base}\x1b[1m")), // H3
+                leak(base.clone()),             // H4: colour only
+                leak(base.clone()),             // H5
+                leak(base),                     // H6
             ]
         }
 
@@ -338,14 +338,8 @@ impl Theme {
             italic: leak(format!("\x1b[3m{}", ansi_fg_prefix(&self.italic_color))),
             code: leak(ansi_fg_prefix(&self.code_color)),
             code_block: leak(ansi_fg_prefix(&self.code_color)),
-            code_block_border: leak(format!(
-                "\x1b[2m{}",
-                ansi_fg_prefix(&self.border_muted)
-            )),
-            link: leak(format!(
-                "{}\x1b[4m",
-                ansi_fg_prefix(&self.link_color)
-            )),
+            code_block_border: leak(format!("\x1b[2m{}", ansi_fg_prefix(&self.border_muted))),
+            link: leak(format!("{}\x1b[4m", ansi_fg_prefix(&self.link_color))),
             link_url: leak(ansi_fg_prefix(&self.dim)),
             list_bullet: leak(ansi_fg_prefix(&self.list_bullet)),
             quote: leak(ansi_fg_prefix(&self.quote_color)),
@@ -358,44 +352,74 @@ impl Theme {
 
     /// Build a [`SelectListTheme`] from this `Theme`.
     pub fn to_select_list_theme(&self) -> SelectListTheme {
-	let primary = self.primary.clone();
-	let muted = self.muted.clone();
-	let _text = self.text.clone();
-	let primary_pref = primary.clone();
-	let primary_text = primary.clone();
-	let muted_desc = muted.clone();
-	let muted_scroll = muted.clone();
-	SelectListTheme {
-	    selected_prefix: Box::new(move |s| format!("\x1b[38;2;{};{};{}m{}\x1b[39m",
-		hex_r(&primary_pref), hex_g(&primary_pref), hex_b(&primary_pref), s)),
-	    selected_text: Box::new(move |s| format!("\x1b[38;2;{};{};{}m{}\x1b[39m",
-		    hex_r(&primary_text), hex_g(&primary_text), hex_b(&primary_text), s)),
-	    description: Box::new(move |s| format!("\x1b[38;2;{};{};{}m{}\x1b[39m",
-		    hex_r(&muted_desc), hex_g(&muted_desc), hex_b(&muted_desc), s)),
-	    scroll_info: Box::new(move |s| format!("\x1b[38;2;{};{};{}m{}\x1b[39m",
-		    hex_r(&muted_scroll), hex_g(&muted_scroll), hex_b(&muted_scroll), s)),
-	    no_match: Box::new(move |s| format!("\x1b[38;2;{};{};{}m{}\x1b[39m",
-		    hex_r(&muted), hex_g(&muted), hex_b(&muted), s)),
-	}
+        let primary = self.primary.clone();
+        let muted = self.muted.clone();
+        let _text = self.text.clone();
+        let primary_pref = primary.clone();
+        let primary_text = primary.clone();
+        let muted_desc = muted.clone();
+        let muted_scroll = muted.clone();
+        SelectListTheme {
+            selected_prefix: Box::new(move |s| {
+                format!(
+                    "\x1b[38;2;{};{};{}m{}\x1b[39m",
+                    hex_r(&primary_pref),
+                    hex_g(&primary_pref),
+                    hex_b(&primary_pref),
+                    s
+                )
+            }),
+            selected_text: Box::new(move |s| {
+                format!(
+                    "\x1b[38;2;{};{};{}m{}\x1b[39m",
+                    hex_r(&primary_text),
+                    hex_g(&primary_text),
+                    hex_b(&primary_text),
+                    s
+                )
+            }),
+            description: Box::new(move |s| {
+                format!("\x1b[38;2;{};{};{}m{}\x1b[39m", hex_r(&muted_desc), hex_g(&muted_desc), hex_b(&muted_desc), s)
+            }),
+            scroll_info: Box::new(move |s| {
+                format!(
+                    "\x1b[38;2;{};{};{}m{}\x1b[39m",
+                    hex_r(&muted_scroll),
+                    hex_g(&muted_scroll),
+                    hex_b(&muted_scroll),
+                    s
+                )
+            }),
+            no_match: Box::new(move |s| {
+                format!("\x1b[38;2;{};{};{}m{}\x1b[39m", hex_r(&muted), hex_g(&muted), hex_b(&muted), s)
+            }),
+        }
     }
 
     /// Build a [`SettingsListTheme`] from this `Theme`.
     pub fn to_settings_list_theme(&self) -> SettingsListTheme {
-	let primary = self.primary.clone();
-	let muted = self.muted.clone();
-	let dim = self.dim.clone();
-	let _text = self.text.clone();
-	SettingsListTheme {
-	    label: Box::new(|s, _selected| s.to_string()),
-	    value: Box::new(move |s, _selected| format!("\x1b[38;2;{};{};{}m{}\x1b[39m",
-		    hex_r(&primary), hex_g(&primary), hex_b(&primary), s)),
-	    description: Box::new(move |s| format!("\x1b[38;2;{};{};{}m{}\x1b[39m",
-		    hex_r(&dim), hex_g(&dim), hex_b(&dim), s)),
-	    cursor: format!("\x1b[38;2;{};{};{}m\u{2192}\x1b[39m ",
-		hex_r(&self.primary), hex_g(&self.primary), hex_b(&self.primary)),
-	    hint: Box::new(move |s| format!("\x1b[38;2;{};{};{}m{}\x1b[39m",
-		    hex_r(&muted), hex_g(&muted), hex_b(&muted), s)),
-	}
+        let primary = self.primary.clone();
+        let muted = self.muted.clone();
+        let dim = self.dim.clone();
+        let _text = self.text.clone();
+        SettingsListTheme {
+            label: Box::new(|s, _selected| s.to_string()),
+            value: Box::new(move |s, _selected| {
+                format!("\x1b[38;2;{};{};{}m{}\x1b[39m", hex_r(&primary), hex_g(&primary), hex_b(&primary), s)
+            }),
+            description: Box::new(move |s| {
+                format!("\x1b[38;2;{};{};{}m{}\x1b[39m", hex_r(&dim), hex_g(&dim), hex_b(&dim), s)
+            }),
+            cursor: format!(
+                "\x1b[38;2;{};{};{}m\u{2192}\x1b[39m ",
+                hex_r(&self.primary),
+                hex_g(&self.primary),
+                hex_b(&self.primary)
+            ),
+            hint: Box::new(move |s| {
+                format!("\x1b[38;2;{};{};{}m{}\x1b[39m", hex_r(&muted), hex_g(&muted), hex_b(&muted), s)
+            }),
+        }
     }
 }
 
@@ -459,10 +483,7 @@ impl ThemeWatcher {
                 for event in rx {
                     match event {
                         Ok(event) => {
-                            if matches!(
-                                event.kind,
-                                EventKind::Modify(_) | EventKind::Create(_)
-                            ) {
+                            if matches!(event.kind, EventKind::Modify(_) | EventKind::Create(_)) {
                                 thread::sleep(Duration::from_millis(100));
                                 callback();
                             }
@@ -475,10 +496,7 @@ impl ThemeWatcher {
             })
             .expect("failed to spawn theme-watcher thread");
 
-        Ok(Self {
-            watcher,
-            join_handle: Some(join_handle),
-        })
+        Ok(Self { watcher, join_handle: Some(join_handle) })
     }
 }
 
@@ -560,26 +578,11 @@ mod tests {
 
     /// Syntax-token checks.
     fn check_syntax_tokens(theme: &Theme) {
-        let required = [
-            "comment",
-            "keyword",
-            "function",
-            "variable",
-            "string",
-            "number",
-            "type",
-            "operator",
-            "punctuation",
-        ];
+        let required =
+            ["comment", "keyword", "function", "variable", "string", "number", "type", "operator", "punctuation"];
         for token in &required {
-            assert!(
-                theme.syntax.contains_key(*token),
-                "syntax token missing: {token}"
-            );
-            assert!(
-                !theme.syntax.get(*token).unwrap().is_empty(),
-                "syntax token empty: {token}"
-            );
+            assert!(theme.syntax.contains_key(*token), "syntax token missing: {token}");
+            assert!(!theme.syntax.get(*token).unwrap().is_empty(), "syntax token empty: {token}");
         }
         assert!(theme.syntax.len() >= 9, "syntax should have >= 9 tokens");
     }

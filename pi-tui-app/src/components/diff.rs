@@ -7,8 +7,8 @@
 //!
 //! Mirrors `packages/coding-agent/src/modes/interactive/components/diff.ts`
 
-use pi_tui_core::Component;
 use crate::Theme;
+use pi_tui_core::Component;
 
 /// Parse a single diff line into its prefix, line number, and content parts.
 ///
@@ -109,27 +109,23 @@ fn render_diff_internal(diff_text: &str, theme: &Theme) -> Vec<String> {
 
                         // Render all removed then all added
                         for (ln, c) in &removed {
-                            let styled =
-                                theme.ansi(&theme.tool_diff_removed, &format!("-{ln} {c}"));
+                            let styled = theme.ansi(&theme.tool_diff_removed, &format!("-{ln} {c}"));
                             result.push(styled);
                         }
                         for (ln, c) in &added {
-                            let styled =
-                                theme.ansi(&theme.tool_diff_added, &format!("+{ln} {c}"));
+                            let styled = theme.ansi(&theme.tool_diff_added, &format!("+{ln} {c}"));
                             result.push(styled);
                         }
                     }
                     '+' => {
                         // Standalone added line
-                        let styled =
-                            theme.ansi(&theme.tool_diff_added, &format!("+{line_num} {content}"));
+                        let styled = theme.ansi(&theme.tool_diff_added, &format!("+{line_num} {content}"));
                         result.push(styled);
                         i += 1;
                     }
                     ' ' => {
                         // Context line
-                        let styled =
-                            theme.ansi(&theme.tool_diff_context, &format!(" {line_num} {content}"));
+                        let styled = theme.ansi(&theme.tool_diff_context, &format!(" {line_num} {content}"));
                         result.push(styled);
                         i += 1;
                     }

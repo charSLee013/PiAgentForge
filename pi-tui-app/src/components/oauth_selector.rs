@@ -2,12 +2,12 @@
 //!
 //! Shows a searchable list of auth providers the user can log into or log out of.
 
+use crate::Theme;
 use pi_tui_core::component::Component;
 use pi_tui_core::components::input::Input;
 use pi_tui_core::fuzzy::fuzzy_filter;
 use pi_tui_core::keys::{matches_key, parse_key};
 use pi_tui_core::utils::truncate_to_width;
-use crate::Theme;
 
 type OAuthSelectCallback = Box<dyn FnMut(&str) + Send>;
 
@@ -59,14 +59,9 @@ impl OAuthSelector {
             self.filtered_providers = self.all_providers.clone();
         } else {
             let results = fuzzy_filter(query, &self.all_providers.iter().map(|p| &p.name).collect::<Vec<_>>());
-            self.filtered_providers = results
-                .iter()
-                .map(|(idx, _)| self.all_providers[*idx].clone())
-                .collect();
+            self.filtered_providers = results.iter().map(|(idx, _)| self.all_providers[*idx].clone()).collect();
         }
-        self.selected_index = self
-            .selected_index
-            .min(self.filtered_providers.len().saturating_sub(1));
+        self.selected_index = self.selected_index.min(self.filtered_providers.len().saturating_sub(1));
     }
 }
 
@@ -87,11 +82,7 @@ impl Component for OAuthSelector {
 
         // Provider list
         if self.filtered_providers.is_empty() {
-            let msg = if self.all_providers.is_empty() {
-                "No providers available"
-            } else {
-                "No matching providers"
-            };
+            let msg = if self.all_providers.is_empty() { "No providers available" } else { "No matching providers" };
             lines.push(self.theme.ansi(&self.theme.muted, &format!("  {}", msg)));
             return lines;
         }
@@ -122,9 +113,14 @@ impl Component for OAuthSelector {
             if is_selected {
                 let line = format!(
                     "\x1b[38;2;{};{};{}m\u{2192} \x1b[39m\x1b[38;2;{};{};{}m{}\x1b[39m{}",
-                    hex_r(&self.theme.primary), hex_g(&self.theme.primary), hex_b(&self.theme.primary),
-                    hex_r(&self.theme.primary), hex_g(&self.theme.primary), hex_b(&self.theme.primary),
-                    truncated, indicator
+                    hex_r(&self.theme.primary),
+                    hex_g(&self.theme.primary),
+                    hex_b(&self.theme.primary),
+                    hex_r(&self.theme.primary),
+                    hex_g(&self.theme.primary),
+                    hex_b(&self.theme.primary),
+                    truncated,
+                    indicator
                 );
                 lines.push(line);
             } else {
@@ -134,8 +130,7 @@ impl Component for OAuthSelector {
 
         // Scroll indicator
         if start > 0 || end < total {
-            let scroll = self.theme.ansi(&self.theme.muted,
-                &format!("  ({}/{})", self.selected_index + 1, total));
+            let scroll = self.theme.ansi(&self.theme.muted, &format!("  ({}/{})", self.selected_index + 1, total));
             lines.push(scroll);
         }
 
@@ -146,19 +141,17 @@ impl Component for OAuthSelector {
         let event = parse_key(data);
 
         if matches_key(&event, "up") {
-            if self.filtered_providers.is_empty() { return; }
-            self.selected_index = if self.selected_index == 0 {
-                self.filtered_providers.len() - 1
-            } else {
-                self.selected_index - 1
-            };
+            if self.filtered_providers.is_empty() {
+                return;
+            }
+            self.selected_index =
+                if self.selected_index == 0 { self.filtered_providers.len() - 1 } else { self.selected_index - 1 };
         } else if matches_key(&event, "down") {
-            if self.filtered_providers.is_empty() { return; }
-            self.selected_index = if self.selected_index == self.filtered_providers.len() - 1 {
-                0
-            } else {
-                self.selected_index + 1
-            };
+            if self.filtered_providers.is_empty() {
+                return;
+            }
+            self.selected_index =
+                if self.selected_index == self.filtered_providers.len() - 1 { 0 } else { self.selected_index + 1 };
         } else if matches_key(&event, "enter") {
             if let Some(p) = self.filtered_providers.get(self.selected_index).cloned() {
                 if let Some(ref mut cb) = self.on_select {
@@ -203,8 +196,20 @@ mod tests {
     fn test_oauth_selector_renders_providers() {
         let theme = Theme::dark();
         let providers = vec![
-            AuthProvider { id: "anthropic".into(), name: "Anthropic".into(), auth_type: "oauth".into(), configured: true, status_label: None },
-            AuthProvider { id: "openai".into(), name: "OpenAI".into(), auth_type: "api_key".into(), configured: false, status_label: None },
+            AuthProvider {
+                id: "anthropic".into(),
+                name: "Anthropic".into(),
+                auth_type: "oauth".into(),
+                configured: true,
+                status_label: None,
+            },
+            AuthProvider {
+                id: "openai".into(),
+                name: "OpenAI".into(),
+                auth_type: "api_key".into(),
+                configured: false,
+                status_label: None,
+            },
         ];
         let selector = OAuthSelector::new("login".into(), providers, &theme);
         let lines = selector.render(80);

@@ -4,10 +4,10 @@
 //!
 //! Mirrors `packages/coding-agent/src/modes/interactive/components/branch-summary-message.ts`
 
+use crate::Theme;
 use pi_tui_core::components::spacer::Spacer;
 use pi_tui_core::components::text::Text;
 use pi_tui_core::{Component, Container};
-use crate::Theme;
 
 /// Renders a branch summary message with collapsed/expanded state.
 ///
@@ -33,18 +33,11 @@ impl BranchSummaryMessage {
 
             let trimmed = summary.trim();
             if !trimmed.is_empty() {
-                inner.add(Text::with_padding(
-                    theme.ansi(&theme.text, trimmed),
-                    1,
-                    0,
-                ));
+                inner.add(Text::with_padding(theme.ansi(&theme.text, trimmed), 1, 0));
             }
         } else {
-            let line = format!(
-                "{} {}",
-                theme.ansi(&theme.text, &theme.bold("[branch]")),
-                theme.dim("(expand to view)"),
-            );
+            let line =
+                format!("{} {}", theme.ansi(&theme.text, &theme.bold("[branch]")), theme.dim("(expand to view)"),);
             inner.add(Text::with_padding(line, 1, 0));
         }
 

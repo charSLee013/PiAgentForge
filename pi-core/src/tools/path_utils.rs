@@ -21,11 +21,7 @@ pub fn expand_tilde(path: &str) -> PathBuf {
 /// Handles `~` expansion and absolute paths.
 pub fn resolve_to_cwd(file_path: &str, cwd: &Path) -> PathBuf {
     let expanded = expand_tilde(file_path);
-    if expanded.is_absolute() {
-        expanded
-    } else {
-        cwd.join(&expanded)
-    }
+    if expanded.is_absolute() { expanded } else { cwd.join(&expanded) }
 }
 
 /// Like `resolve_to_cwd`, but attempts a few platform-specific fallbacks for
@@ -81,13 +77,7 @@ mod tests {
     #[test]
     fn test_resolve_to_cwd() {
         let cwd = Path::new("/home/user/project");
-        assert_eq!(
-            resolve_to_cwd("subdir/file.txt", cwd),
-            PathBuf::from("/home/user/project/subdir/file.txt")
-        );
-        assert_eq!(
-            resolve_to_cwd("/abs/path/file.txt", cwd),
-            PathBuf::from("/abs/path/file.txt")
-        );
+        assert_eq!(resolve_to_cwd("subdir/file.txt", cwd), PathBuf::from("/home/user/project/subdir/file.txt"));
+        assert_eq!(resolve_to_cwd("/abs/path/file.txt", cwd), PathBuf::from("/abs/path/file.txt"));
     }
 }

@@ -3,9 +3,9 @@
 //! Shows a list of available themes for the user to pick from.
 //! Wraps a `SelectList` with theme-aware styling.
 
+use crate::Theme;
 use pi_tui_core::component::Component;
 use pi_tui_core::components::select_list::{SelectItem, SelectList};
-use crate::Theme;
 
 /// A theme selector component.
 pub struct ThemeSelector {
@@ -20,13 +20,7 @@ impl ThemeSelector {
     /// * `theme` — application theme for styling.
     /// * `on_select` — called when the user selects a theme.
     /// * `on_cancel` — called when the user cancels.
-    pub fn new<F1, F2>(
-        themes: Vec<String>,
-        current_theme: &str,
-        theme: &Theme,
-        on_select: F1,
-        on_cancel: F2,
-    ) -> Self
+    pub fn new<F1, F2>(themes: Vec<String>, current_theme: &str, theme: &Theme, on_select: F1, on_cancel: F2) -> Self
     where
         F1: FnMut(&SelectItem) + Send + 'static,
         F2: FnMut() + Send + 'static,
@@ -36,11 +30,7 @@ impl ThemeSelector {
             .map(|name| SelectItem {
                 value: name.clone(),
                 label: name.clone(),
-                description: if name == current_theme {
-                    Some("(current)".to_string())
-                } else {
-                    None
-                },
+                description: if name == current_theme { Some("(current)".to_string()) } else { None },
             })
             .collect();
 

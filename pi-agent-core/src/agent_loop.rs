@@ -80,9 +80,7 @@ where
     let mut turn_number: u32 = 0;
 
     // ── Agent start ──────────────────────────────────────────────────────────
-    event_sink(AgentEvent::AgentStart {
-        context: state.context.clone(),
-    });
+    event_sink(AgentEvent::AgentStart { context: state.context.clone() });
 
     // ── Main turn loop ───────────────────────────────────────────────────────
     loop {
@@ -125,9 +123,7 @@ where
         };
 
         let message_id = uuid::Uuid::new_v4().to_string();
-        event_sink(AgentEvent::MessageStart {
-            message_id: message_id.clone(),
-        });
+        event_sink(AgentEvent::MessageStart { message_id: message_id.clone() });
 
         // Accumulators for building the assistant message
         let mut text_parts: Vec<String> = Vec::new();
@@ -219,18 +215,10 @@ where
 
         // ── Handle stream-level errors ─────────────────────────────────────
         if let Some(err_msg) = stream_error {
-            let error_content = vec![ContentBlock::Text(TextContent {
-                text: err_msg.clone(),
-            })];
-            event_sink(AgentEvent::MessageEnd {
-                message: error_content,
-                message_id: message_id.clone(),
-            });
+            let error_content = vec![ContentBlock::Text(TextContent { text: err_msg.clone() })];
+            event_sink(AgentEvent::MessageEnd { message: error_content, message_id: message_id.clone() });
             event_sink(AgentEvent::TurnEnd { turn_number });
-            event_sink(AgentEvent::AgentEnd {
-                finish_reason: "error".to_string(),
-                messages: state.messages.clone(),
-            });
+            event_sink(AgentEvent::AgentEnd { finish_reason: "error".to_string(), messages: state.messages.clone() });
             return Err(AgentError::StreamError(StreamError::ProviderError(err_msg)));
         }
 
@@ -239,9 +227,7 @@ where
             let mut content: Vec<ContentBlock> = Vec::new();
 
             if !text_parts.is_empty() {
-                content.push(ContentBlock::Text(TextContent {
-                    text: text_parts.concat(),
-                }));
+                content.push(ContentBlock::Text(TextContent { text: text_parts.concat() }));
             }
 
             if !thinking_parts.is_empty() {
@@ -252,8 +238,7 @@ where
             }
 
             for tc in tool_calls.values() {
-                let args: serde_json::Value =
-                    serde_json::from_str(&tc.arguments).unwrap_or(serde_json::Value::Null);
+                let args: serde_json::Value = serde_json::from_str(&tc.arguments).unwrap_or(serde_json::Value::Null);
                 content.push(ContentBlock::ToolCall(ToolCallContent {
                     id: tc.id.clone(),
                     name: tc.name.clone(),
@@ -265,10 +250,7 @@ where
         });
 
         // ── Emit message end ───────────────────────────────────────────────
-        event_sink(AgentEvent::MessageEnd {
-            message: assistant_msg.content.clone(),
-            message_id: message_id.clone(),
-        });
+        event_sink(AgentEvent::MessageEnd { message: assistant_msg.content.clone(), message_id: message_id.clone() });
 
         // ── Add assistant message to state ────────────────────────────────
         state.messages.push(assistant_msg.clone());
@@ -349,9 +331,8 @@ where
                             }
                         }
                         Err(err) => {
-                            let error_content = vec![ContentBlock::Text(TextContent {
-                                text: format!("Error: {}", err),
-                            })];
+                            let error_content =
+                                vec![ContentBlock::Text(TextContent { text: format!("Error: {}", err) })];
                             let error_result = AgentToolResult {
                                 tool_call_id: tc_id.clone(),
                                 content: error_content.clone(),
@@ -424,14 +405,14 @@ where
 /// Unlike [`agent_loop()`], this function owns its own turn loop instead
 /// of delegating, so it can interleave queue polling and parallelism.
 #[allow(clippy::too_many_arguments)]
-pub async fn agent_loop_with_queues<F, Fut, G, H>(
+pub async fn agent_loop_with_queues<F, Fut, G, H, S, U>(
     state: &mut AgentState,
     stream_fn: F,
     tool_executor: G,
     event_sink: H,
     cancel: CancellationToken,
-    mut get_steering: Option<&mut dyn FnMut() -> Vec<Message>>,
-    mut get_follow_up: Option<&mut dyn FnMut() -> Vec<Message>>,
+    mut get_steering: Option<S>,
+    mut get_follow_up: Option<U>,
     parallel: bool,
     last_assistant: Option<&Arc<Mutex<Option<Message>>>>,
 ) -> Result<(), AgentError>
@@ -440,6 +421,8 @@ where
     Fut: Future<Output = Result<AssistantMessageEventStream, StreamError>>,
     G: Fn(&str, &str, &serde_json::Value) -> Result<crate::types::AgentToolResult, String> + Send + Sync + 'static,
     H: Fn(AgentEvent),
+    S: FnMut() -> Vec<Message> + Send,
+    U: FnMut() -> Vec<Message> + Send,
 {
     let max_turns = state.context.max_turns;
     let mut turn_number: u32 = 0;
@@ -451,9 +434,7 @@ where
     let executor_arc = std::sync::Arc::new(tool_executor);
 
     // ── Agent start ──────────────────────────────────────────────────────────
-    event_sink(AgentEvent::AgentStart {
-        context: state.context.clone(),
-    });
+    event_sink(AgentEvent::AgentStart { context: state.context.clone() });
 
     // Outer loop: follow-up queue
     loop {
@@ -470,11 +451,17 @@ where
 
             // ── Turn start ─────────────────────────────────────────────
             if cancel.is_cancelled() {
-                event_sink(AgentEvent::AgentEnd { finish_reason: "cancelled".into(), messages: state.messages.clone() });
+                event_sink(AgentEvent::AgentEnd {
+                    finish_reason: "cancelled".into(),
+                    messages: state.messages.clone(),
+                });
                 return Err(AgentError::Cancelled);
             }
             if turn_number >= max_turns {
-                event_sink(AgentEvent::AgentEnd { finish_reason: "max_turns".into(), messages: state.messages.clone() });
+                event_sink(AgentEvent::AgentEnd {
+                    finish_reason: "max_turns".into(),
+                    messages: state.messages.clone(),
+                });
                 return Err(AgentError::MaxTurnsReached(max_turns));
             }
             turn_number += 1;
@@ -490,7 +477,13 @@ where
             };
             let mut stream = match stream_fn(llm_context).await {
                 Ok(s) => s,
-                Err(e) => { event_sink(AgentEvent::AgentEnd { finish_reason: "stream_error".into(), messages: state.messages.clone() }); return Err(AgentError::StreamError(e)); }
+                Err(e) => {
+                    event_sink(AgentEvent::AgentEnd {
+                        finish_reason: "stream_error".into(),
+                        messages: state.messages.clone(),
+                    });
+                    return Err(AgentError::StreamError(e));
+                }
             };
 
             let message_id = uuid::Uuid::new_v4().to_string();
@@ -540,7 +533,10 @@ where
 
             // Check for stream error and abort the run
             if let Some(err) = stream_error {
-                event_sink(AgentEvent::AgentEnd { finish_reason: "stream_error".into(), messages: state.messages.clone() });
+                event_sink(AgentEvent::AgentEnd {
+                    finish_reason: "stream_error".into(),
+                    messages: state.messages.clone(),
+                });
                 event_sink(AgentEvent::TurnEnd { turn_number });
                 return Err(AgentError::StreamError(pi_ai_core::stream::StreamError::ProviderError(err)));
             }
@@ -553,10 +549,19 @@ where
             // (thinking_parts skipped for brevity — they are preserved in the message)
             for tc in tool_calls.values() {
                 let args: serde_json::Value = serde_json::from_str(&tc.arguments).unwrap_or(serde_json::Value::Null);
-                content.push(ContentBlock::ToolCall(ToolCallContent { id: tc.id.clone(), name: tc.name.clone(), arguments: args }));
+                content.push(ContentBlock::ToolCall(ToolCallContent {
+                    id: tc.id.clone(),
+                    name: tc.name.clone(),
+                    arguments: args,
+                }));
             }
-            let assistant_msg = final_message.unwrap_or_else(|| {
-                Message { role: MessageRole::Assistant, content: content.clone(), id: None, name: None, usage: None, redacted: false }
+            let assistant_msg = final_message.unwrap_or_else(|| Message {
+                role: MessageRole::Assistant,
+                content: content.clone(),
+                id: None,
+                name: None,
+                usage: None,
+                redacted: false,
             });
             state.messages.push(assistant_msg.clone());
             event_sink(AgentEvent::MessageEnd { message: content.clone(), message_id: message_id.clone() });
@@ -572,64 +577,109 @@ where
 
             // ── Tool use → execute calls ──────────────────────────────
             if reason == "tool_use" || reason == "toolUse" {
-                let calls: Vec<(String, String, serde_json::Value)> = assistant_msg.content.iter()
-                    .filter_map(|c| if let ContentBlock::ToolCall(tc) = c { Some((tc.id.clone(), tc.name.clone(), tc.arguments.clone())) } else { None })
+                let calls: Vec<(String, String, serde_json::Value)> = assistant_msg
+                    .content
+                    .iter()
+                    .filter_map(|c| {
+                        if let ContentBlock::ToolCall(tc) = c {
+                            Some((tc.id.clone(), tc.name.clone(), tc.arguments.clone()))
+                        } else {
+                            None
+                        }
+                    })
                     .collect();
 
                 let should_parallel = parallel && calls.len() > 1;
 
                 // Collect results — either parallel or sequential
-                let results: Vec<(String, std::result::Result<crate::types::AgentToolResult, String>)> = if should_parallel {
-                    use tokio::task::spawn_blocking;
-                    let mut tasks = Vec::with_capacity(calls.len());
-                    for (id, name, args) in &calls {
-                        let id = id.clone();
-                        let name = name.clone();
-                        let args = args.clone();
-                        let exec = executor_arc.clone();
-                        tasks.push(spawn_blocking(move || {
-                            (id.clone(), exec.as_ref()(&name, &id, &args))
-                        }));
-                    }
-                    let mut results = Vec::with_capacity(calls.len());
-                    for task in tasks {
-                        match task.await {
-                            Ok((id, Ok(result))) => results.push((id, Ok(result))),
-                            Ok((id, Err(e))) => results.push((id, Err(e))),
-                            Err(e) => results.push((String::new(), Err(e.to_string()))),
+                let results: Vec<(String, std::result::Result<crate::types::AgentToolResult, String>)> =
+                    if should_parallel {
+                        use tokio::task::spawn_blocking;
+                        let mut tasks = Vec::with_capacity(calls.len());
+                        for (id, name, args) in &calls {
+                            let id = id.clone();
+                            let name = name.clone();
+                            let args = args.clone();
+                            let exec = executor_arc.clone();
+                            tasks.push(spawn_blocking(move || (id.clone(), exec.as_ref()(&name, &id, &args))));
                         }
-                    }
-                    results
-                } else {
-                    calls.iter().map(|(id, name, args)| {
-                        (id.clone(), executor_arc.as_ref()(name, id, args))
-                    }).collect()
-                };
+                        let mut results = Vec::with_capacity(calls.len());
+                        for task in tasks {
+                            match task.await {
+                                Ok((id, Ok(result))) => results.push((id, Ok(result))),
+                                Ok((id, Err(e))) => results.push((id, Err(e))),
+                                Err(e) => results.push((String::new(), Err(e.to_string()))),
+                            }
+                        }
+                        results
+                    } else {
+                        calls
+                            .iter()
+                            .map(|(id, name, args)| (id.clone(), executor_arc.as_ref()(name, id, args)))
+                            .collect()
+                    };
 
                 // Emit events for each result (in original call order)
                 for (tc_id, result) in results {
-                    let tc_name = calls.iter().find(|(id, _, _)| *id == tc_id).map(|(_, n, _)| n.clone()).unwrap_or_default();
-                    event_sink(AgentEvent::ToolExecutionStart { tool_call_id: tc_id.clone(), tool_name: tc_name.clone(), arguments: serde_json::Value::Null });
+                    let tc_name =
+                        calls.iter().find(|(id, _, _)| *id == tc_id).map(|(_, n, _)| n.clone()).unwrap_or_default();
+                    event_sink(AgentEvent::ToolExecutionStart {
+                        tool_call_id: tc_id.clone(),
+                        tool_name: tc_name.clone(),
+                        arguments: serde_json::Value::Null,
+                    });
 
                     match result {
                         Ok(tool_result) => {
                             let content_clone = tool_result.content.clone();
                             let is_error = tool_result.is_error;
-                            event_sink(AgentEvent::ToolExecutionEnd { tool_call_id: tc_id.clone(), tool_name: tc_name.clone(), result: tool_result.clone() });
+                            event_sink(AgentEvent::ToolExecutionEnd {
+                                tool_call_id: tc_id.clone(),
+                                tool_name: tc_name.clone(),
+                                result: tool_result.clone(),
+                            });
                             state.messages.push(Message {
                                 role: MessageRole::Tool,
-                                content: vec![ContentBlock::ToolResult(ToolResultContent { id: tc_id.clone(), name: tc_name.clone(), content: Some(content_clone), error: None, is_error })],
-                                id: None, name: Some(tc_name), usage: None, redacted: false,
+                                content: vec![ContentBlock::ToolResult(ToolResultContent {
+                                    id: tc_id.clone(),
+                                    name: tc_name.clone(),
+                                    content: Some(content_clone),
+                                    error: None,
+                                    is_error,
+                                })],
+                                id: None,
+                                name: Some(tc_name),
+                                usage: None,
+                                redacted: false,
                             });
                         }
                         Err(err) => {
-                            let error_content = vec![ContentBlock::Text(TextContent { text: format!("Error: {}", err) })];
-                            let error_result = crate::types::AgentToolResult { tool_call_id: tc_id.clone(), content: error_content.clone(), is_error: true, details: Some(serde_json::json!({"error": err})) };
-                            event_sink(AgentEvent::ToolExecutionEnd { tool_call_id: tc_id.clone(), tool_name: tc_name.clone(), result: error_result });
+                            let error_content =
+                                vec![ContentBlock::Text(TextContent { text: format!("Error: {}", err) })];
+                            let error_result = crate::types::AgentToolResult {
+                                tool_call_id: tc_id.clone(),
+                                content: error_content.clone(),
+                                is_error: true,
+                                details: Some(serde_json::json!({"error": err})),
+                            };
+                            event_sink(AgentEvent::ToolExecutionEnd {
+                                tool_call_id: tc_id.clone(),
+                                tool_name: tc_name.clone(),
+                                result: error_result,
+                            });
                             state.messages.push(Message {
                                 role: MessageRole::Tool,
-                                content: vec![ContentBlock::ToolResult(ToolResultContent { id: tc_id.clone(), name: tc_name.clone(), content: Some(error_content), error: Some(err), is_error: true })],
-                                id: None, name: Some(tc_name), usage: None, redacted: false,
+                                content: vec![ContentBlock::ToolResult(ToolResultContent {
+                                    id: tc_id.clone(),
+                                    name: tc_name.clone(),
+                                    content: Some(error_content),
+                                    error: Some(err),
+                                    is_error: true,
+                                })],
+                                id: None,
+                                name: Some(tc_name),
+                                usage: None,
+                                redacted: false,
                             });
                         }
                     }
@@ -642,7 +692,9 @@ where
                 if let Some(ref mut steer) = get_steering {
                     let more = steer();
                     if !more.is_empty() {
-                        for msg in more { state.messages.push(msg); }
+                        for msg in more {
+                            state.messages.push(msg);
+                        }
                         has_more = true;
                     }
                 }
@@ -652,6 +704,15 @@ where
             // ── end_turn / stop / error ───────────────────────────────────
             event_sink(AgentEvent::TurnEnd { turn_number });
             has_more = false;
+            if let Some(ref mut steer) = get_steering {
+                let more = steer();
+                if !more.is_empty() {
+                    for msg in more {
+                        state.messages.push(msg);
+                    }
+                    has_more = true;
+                }
+            }
         }
 
         // Inner loop done → check follow-up
@@ -659,8 +720,12 @@ where
             Some(ref mut f) => f(),
             None => break,
         };
-        if follow_ups.is_empty() { break; }
-        for msg in follow_ups { state.messages.push(msg); }
+        if follow_ups.is_empty() {
+            break;
+        }
+        for msg in follow_ups {
+            state.messages.push(msg);
+        }
     }
 
     event_sink(AgentEvent::AgentEnd { finish_reason: "end_turn".into(), messages: state.messages.clone() });
@@ -692,13 +757,8 @@ mod tests {
         move |_ctx: Context| {
             let (tx, rx) = EventStream::new();
             let _ = tx.send(StreamEvent::Start);
-            let _ = tx.send(StreamEvent::TextDelta {
-                delta: text.clone(),
-            });
-            let _ = tx.send(StreamEvent::Done {
-                message: None,
-                stop_reason: Some(stop_reason.clone()),
-            });
+            let _ = tx.send(StreamEvent::TextDelta { delta: text.clone() });
+            let _ = tx.send(StreamEvent::Done { message: None, stop_reason: Some(stop_reason.clone()) });
             drop(tx);
             Box::pin(std::future::ready(Ok(rx)))
         }
@@ -728,9 +788,7 @@ mod tests {
             if is_first {
                 *first_call.lock().unwrap() = false;
                 if !preface.is_empty() {
-                    let _ = tx.send(StreamEvent::TextDelta {
-                        delta: preface.clone(),
-                    });
+                    let _ = tx.send(StreamEvent::TextDelta { delta: preface.clone() });
                 }
                 let _ = tx.send(StreamEvent::ToolCallDelta {
                     index: 0,
@@ -738,16 +796,10 @@ mod tests {
                     name: Some(tool_name.clone()),
                     arguments: Some(tool_args.clone()),
                 });
-                let _ = tx.send(StreamEvent::Done {
-                    message: None,
-                    stop_reason: Some("tool_use".into()),
-                });
+                let _ = tx.send(StreamEvent::Done { message: None, stop_reason: Some("tool_use".into()) });
             } else {
                 // Subsequent call: empty end_turn
-                let _ = tx.send(StreamEvent::Done {
-                    message: None,
-                    stop_reason: Some("end_turn".into()),
-                });
+                let _ = tx.send(StreamEvent::Done { message: None, stop_reason: Some("end_turn".into()) });
             }
             drop(tx);
             Box::pin(std::future::ready(Ok(rx)))
@@ -755,27 +807,17 @@ mod tests {
     }
 
     /// A no-op tool executor that returns a canned success result.
-    fn ok_tool_executor(
-        _name: &str,
-        _id: &str,
-        _args: &serde_json::Value,
-    ) -> Result<AgentToolResult, String> {
+    fn ok_tool_executor(_name: &str, _id: &str, _args: &serde_json::Value) -> Result<AgentToolResult, String> {
         Ok(AgentToolResult {
             tool_call_id: _id.to_string(),
-            content: vec![ContentBlock::Text(TextContent {
-                text: "tool executed successfully".into(),
-            })],
+            content: vec![ContentBlock::Text(TextContent { text: "tool executed successfully".into() })],
             is_error: false,
             details: None,
         })
     }
 
     /// A tool executor that always fails.
-    fn failing_tool_executor(
-        _name: &str,
-        _id: &str,
-        _args: &serde_json::Value,
-    ) -> Result<AgentToolResult, String> {
+    fn failing_tool_executor(_name: &str, _id: &str, _args: &serde_json::Value) -> Result<AgentToolResult, String> {
         Err("tool execution failed".to_string())
     }
 
@@ -856,13 +898,7 @@ mod tests {
             state.messages[1]
                 .content
                 .iter()
-                .filter_map(|c| {
-                    if let ContentBlock::Text(t) = c {
-                        Some(t.text.as_str())
-                    } else {
-                        None
-                    }
-                })
+                .filter_map(|c| { if let ContentBlock::Text(t) = c { Some(t.text.as_str()) } else { None } })
                 .collect::<Vec<_>>()
                 .join(""),
             "Hello, world!"
@@ -908,12 +944,7 @@ mod tests {
 
         let result = agent_loop(
             &mut state,
-            tool_call_stream_fn(
-                "Let me check that.",
-                "call_1",
-                "get_weather",
-                r#"{"city": "Tokyo"}"#,
-            ),
+            tool_call_stream_fn("Let me check that.", "call_1", "get_weather", r#"{"city": "Tokyo"}"#),
             ok_tool_executor,
             |ev| {
                 events_clone.lock().unwrap().push(ev);
@@ -947,14 +978,14 @@ mod tests {
         // Turn 2: assistant message (tool result is in context)
         let expected = vec![
             "AgentStart",
-            "TurnStart",            // Turn 1
+            "TurnStart", // Turn 1
             "MessageStart",
             "MessageDelta",
             "MessageEnd",
             "ToolExecutionStart",
             "ToolExecutionEnd",
             "TurnEnd",
-            "TurnStart",            // Turn 2 (tool result fed back to LLM)
+            "TurnStart", // Turn 2 (tool result fed back to LLM)
             "MessageStart",
             "MessageEnd",
             "TurnEnd",
@@ -975,25 +1006,22 @@ mod tests {
         assert_eq!(state.messages[3].role, MessageRole::Assistant);
 
         // Tool result should have the success content (wrapped in ToolResultContent)
-        let tool_result_text: String = state.messages[2]
-            .content
-            .iter()
-            .filter_map(|c| {
-                if let ContentBlock::ToolResult(tr) = c {
-                    tr.content.as_ref().and_then(|blocks| {
-                        blocks.iter().find_map(|b| {
-                            if let ContentBlock::Text(t) = b {
-                                Some(t.text.clone())
-                            } else {
-                                None
-                            }
+        let tool_result_text: String =
+            state.messages[2]
+                .content
+                .iter()
+                .filter_map(|c| {
+                    if let ContentBlock::ToolResult(tr) = c {
+                        tr.content.as_ref().and_then(|blocks| {
+                            blocks
+                                .iter()
+                                .find_map(|b| if let ContentBlock::Text(t) = b { Some(t.text.clone()) } else { None })
                         })
-                    })
-                } else {
-                    None
-                }
-            })
-            .collect();
+                    } else {
+                        None
+                    }
+                })
+                .collect();
         assert_eq!(tool_result_text, "tool executed successfully");
     }
 
@@ -1006,12 +1034,7 @@ mod tests {
 
         let result = agent_loop(
             &mut state,
-            tool_call_stream_fn(
-                "",
-                "call_fail",
-                "broken_tool",
-                r#"{}"#,
-            ),
+            tool_call_stream_fn("", "call_fail", "broken_tool", r#"{}"#),
             failing_tool_executor,
             |ev| {
                 events_clone.lock().unwrap().push(ev);
@@ -1026,12 +1049,7 @@ mod tests {
 
         // The tool failure is non-fatal — the error content is returned to the LLM
         let execution_end = captured.iter().find_map(|e| {
-            if let AgentEvent::ToolExecutionEnd {
-                tool_name,
-                result,
-                ..
-            } = e
-            {
+            if let AgentEvent::ToolExecutionEnd { tool_name, result, .. } = e {
                 Some((tool_name.clone(), result.is_error))
             } else {
                 None
@@ -1060,12 +1078,7 @@ mod tests {
 
         let result = agent_loop(
             &mut state,
-            tool_call_stream_fn(
-                "Let me check.",
-                "call_1",
-                "some_tool",
-                r#"{}"#,
-            ),
+            tool_call_stream_fn("Let me check.", "call_1", "some_tool", r#"{}"#),
             ok_tool_executor,
             |ev| {
                 events_clone.lock().unwrap().push(ev);
@@ -1074,10 +1087,7 @@ mod tests {
         )
         .await;
 
-        assert!(
-            result.is_err(),
-            "Expected Err(MaxTurnsReached), got Ok"
-        );
+        assert!(result.is_err(), "Expected Err(MaxTurnsReached), got Ok");
         match result.unwrap_err() {
             AgentError::MaxTurnsReached(n) => {
                 assert_eq!(n, 1, "Expected MaxTurnsReached(1)");
@@ -1132,10 +1142,7 @@ mod tests {
         )
         .await;
 
-        assert!(
-            result.is_err(),
-            "Expected Err(Cancelled), got Ok"
-        );
+        assert!(result.is_err(), "Expected Err(Cancelled), got Ok");
         match result.unwrap_err() {
             AgentError::Cancelled => {} // expected
             e => panic!("Expected Cancelled, got {:?}", e),
@@ -1153,9 +1160,7 @@ mod tests {
         let stream_fn = move |_ctx: Context| {
             let (tx, rx) = EventStream::new();
             let _ = tx.send(StreamEvent::Start);
-            let _ = tx.send(StreamEvent::TextDelta {
-                delta: "Partial text before error...".into(),
-            });
+            let _ = tx.send(StreamEvent::TextDelta { delta: "Partial text before error...".into() });
             let _ = tx.send(StreamEvent::Error {
                 error: pi_ai_core::types::StreamError {
                     message: "API rate limit exceeded".into(),
@@ -1181,11 +1186,7 @@ mod tests {
         assert!(result.is_err());
         match result.unwrap_err() {
             AgentError::StreamError(StreamError::ProviderError(msg)) => {
-                assert!(
-                    msg.contains("rate limit"),
-                    "Expected rate limit error, got: {}",
-                    msg
-                );
+                assert!(msg.contains("rate limit"), "Expected rate limit error, got: {}", msg);
             }
             e => panic!("Expected StreamError::ProviderError, got {:?}", e),
         }
@@ -1220,25 +1221,22 @@ mod tests {
         assert_eq!(tool_msg.role, MessageRole::Tool);
 
         // The error text should be in the tool result content (wrapped in ToolResultContent)
-        let tool_text: String = tool_msg
-            .content
-            .iter()
-            .filter_map(|c| {
-                if let ContentBlock::ToolResult(tr) = c {
-                    tr.content.as_ref().and_then(|blocks| {
-                        blocks.iter().find_map(|b| {
-                            if let ContentBlock::Text(t) = b {
-                                Some(t.text.clone())
-                            } else {
-                                None
-                            }
+        let tool_text: String =
+            tool_msg
+                .content
+                .iter()
+                .filter_map(|c| {
+                    if let ContentBlock::ToolResult(tr) = c {
+                        tr.content.as_ref().and_then(|blocks| {
+                            blocks
+                                .iter()
+                                .find_map(|b| if let ContentBlock::Text(t) = b { Some(t.text.clone()) } else { None })
                         })
-                    })
-                } else {
-                    None
-                }
-            })
-            .collect();
+                    } else {
+                        None
+                    }
+                })
+                .collect();
         assert!(tool_text.contains("disk full"), "Error text: {}", tool_text);
     }
 
@@ -1258,9 +1256,7 @@ mod tests {
                 let _ = tx.send(StreamEvent::Start);
                 if *first_call.lock().unwrap() {
                     *first_call.lock().unwrap() = false;
-                    let _ = tx.send(StreamEvent::TextDelta {
-                        delta: "Looking up both...".into(),
-                    });
+                    let _ = tx.send(StreamEvent::TextDelta { delta: "Looking up both...".into() });
                     let _ = tx.send(StreamEvent::ToolCallDelta {
                         index: 0,
                         id: Some("call_1".into()),
@@ -1273,15 +1269,9 @@ mod tests {
                         name: Some("get_time".into()),
                         arguments: Some(r#"{"city":"London"}"#.into()),
                     });
-                    let _ = tx.send(StreamEvent::Done {
-                        message: None,
-                        stop_reason: Some("tool_use".into()),
-                    });
+                    let _ = tx.send(StreamEvent::Done { message: None, stop_reason: Some("tool_use".into()) });
                 } else {
-                    let _ = tx.send(StreamEvent::Done {
-                        message: None,
-                        stop_reason: Some("end_turn".into()),
-                    });
+                    let _ = tx.send(StreamEvent::Done { message: None, stop_reason: Some("end_turn".into()) });
                 }
                 drop(tx);
                 Box::pin(std::future::ready(Ok::<_, StreamError>(rx)))
@@ -1304,14 +1294,8 @@ mod tests {
         let captured = events.lock().unwrap();
 
         // Count ToolExecutionStart and ToolExecutionEnd events
-        let start_count = captured
-            .iter()
-            .filter(|e| matches!(e, AgentEvent::ToolExecutionStart { .. }))
-            .count();
-        let end_count = captured
-            .iter()
-            .filter(|e| matches!(e, AgentEvent::ToolExecutionEnd { .. }))
-            .count();
+        let start_count = captured.iter().filter(|e| matches!(e, AgentEvent::ToolExecutionStart { .. })).count();
+        let end_count = captured.iter().filter(|e| matches!(e, AgentEvent::ToolExecutionEnd { .. })).count();
 
         assert_eq!(start_count, 2, "Expected 2 ToolExecutionStart events");
         assert_eq!(end_count, 2, "Expected 2 ToolExecutionEnd events");

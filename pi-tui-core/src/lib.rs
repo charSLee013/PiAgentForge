@@ -8,13 +8,13 @@
 
 pub mod component;
 pub mod components;
-pub mod terminal;
-pub mod stdin_buffer;
-pub mod keys;
-pub mod keybindings;
 pub mod fuzzy;
-pub mod utils;
+pub mod keybindings;
+pub mod keys;
+pub mod stdin_buffer;
+pub mod terminal;
 pub mod tui;
+pub mod utils;
 
 pub use component::{Component, Container};
 pub use components::markdown::{Markdown, MarkdownTheme};

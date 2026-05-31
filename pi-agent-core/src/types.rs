@@ -35,27 +35,13 @@ pub enum AgentEvent {
         message_id: String,
     },
     /// A tool call is about to be executed.
-    ToolExecutionStart {
-        tool_call_id: String,
-        tool_name: String,
-        arguments: serde_json::Value,
-    },
+    ToolExecutionStart { tool_call_id: String, tool_name: String, arguments: serde_json::Value },
     /// A tool call has finished execution.
-    ToolExecutionEnd {
-        tool_call_id: String,
-        tool_name: String,
-        result: AgentToolResult,
-    },
+    ToolExecutionEnd { tool_call_id: String, tool_name: String, result: AgentToolResult },
     /// Partial/streaming update during a tool execution.
-    ToolExecutionUpdate {
-        tool_call_id: String,
-        tool_name: String,
-        partial_result: serde_json::Value,
-    },
+    ToolExecutionUpdate { tool_call_id: String, tool_name: String, partial_result: serde_json::Value },
     /// The agent loop has started with the given context.
-    AgentStart {
-        context: AgentContext,
-    },
+    AgentStart { context: AgentContext },
     /// The agent loop has finished.
     AgentEnd {
         /// Reason the loop finished (e.g., "end_turn", "max_turns", "error").
@@ -64,13 +50,9 @@ pub enum AgentEvent {
         messages: Vec<Message>,
     },
     /// A new turn has started.
-    TurnStart {
-        turn_number: u32,
-    },
+    TurnStart { turn_number: u32 },
     /// A turn has ended.
-    TurnEnd {
-        turn_number: u32,
-    },
+    TurnEnd { turn_number: u32 },
 }
 
 /// The result of executing a single tool call.

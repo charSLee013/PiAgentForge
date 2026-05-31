@@ -9,9 +9,8 @@
 use pi_ai_core::api_registry::ApiProvider;
 use pi_ai_core::event_stream::{AssistantMessageEventStream, EventStreamSender};
 use pi_ai_core::types::{
-    ContentBlock, Context, ImageContent, ImageSource, Message, MessageRole, Model, StreamError,
-    StreamEvent, StreamOptions, TextContent, ThinkingContent, ToolCallContent, ToolResultContent,
-    Usage,
+    ContentBlock, Context, ImageContent, ImageSource, Message, MessageRole, Model, StreamError, StreamEvent,
+    StreamOptions, TextContent, ThinkingContent, ToolCallContent, ToolResultContent, Usage,
 };
 use serde::Deserialize;
 use std::collections::HashMap;
@@ -41,36 +40,21 @@ const INTERLEAVED_THINKING_BETA: &str = "interleaved-thinking-2025-04-15";
 #[serde(tag = "type")]
 enum AnthropicStreamPayload {
     #[serde(rename = "message_start")]
-    MessageStart {
-        message: AnthropicMessageInfo,
-    },
+    MessageStart { message: AnthropicMessageInfo },
     #[serde(rename = "content_block_start")]
-    ContentBlockStart {
-        index: u32,
-        content_block: AnthropicContentBlockInfo,
-    },
+    ContentBlockStart { index: u32, content_block: AnthropicContentBlockInfo },
     #[serde(rename = "content_block_delta")]
-    ContentBlockDelta {
-        index: u32,
-        delta: AnthropicDelta,
-    },
+    ContentBlockDelta { index: u32, delta: AnthropicDelta },
     #[serde(rename = "content_block_stop")]
-    ContentBlockStop {
-        index: u32,
-    },
+    ContentBlockStop { index: u32 },
     #[serde(rename = "message_delta")]
-    MessageDelta {
-        delta: AnthropicMessageDelta,
-        usage: Option<AnthropicUsageRaw>,
-    },
+    MessageDelta { delta: AnthropicMessageDelta, usage: Option<AnthropicUsageRaw> },
     #[serde(rename = "message_stop")]
     MessageStop,
     #[serde(rename = "ping")]
     Ping,
     #[serde(rename = "error")]
-    Error {
-        error: AnthropicErrorInfo,
-    },
+    Error { error: AnthropicErrorInfo },
 }
 
 /// Info about the message extracted from `message_start`.
@@ -94,9 +78,7 @@ struct AnthropicMessageInfo {
 #[serde(tag = "type")]
 enum AnthropicContentBlockInfo {
     #[serde(rename = "text")]
-    Text {
-        text: String,
-    },
+    Text { text: String },
     #[serde(rename = "thinking")]
     Thinking {
         thinking: String,
@@ -124,17 +106,11 @@ enum AnthropicContentBlockInfo {
 #[allow(clippy::enum_variant_names)]
 enum AnthropicDelta {
     #[serde(rename = "text_delta")]
-    TextDelta {
-        text: String,
-    },
+    TextDelta { text: String },
     #[serde(rename = "thinking_delta")]
-    ThinkingDelta {
-        thinking: String,
-    },
+    ThinkingDelta { thinking: String },
     #[serde(rename = "signature_delta")]
-    SignatureDelta {
-        signature: String,
-    },
+    SignatureDelta { signature: String },
     #[serde(rename = "input_json_delta")]
     InputJsonDelta {
         #[serde(rename = "partial_json")]
@@ -270,9 +246,7 @@ impl AnthropicProvider {
     /// Create a provider with a custom base URL (useful for testing or
     /// Anthropic-compatible backends).
     pub fn with_base_url(base_url: impl Into<String>) -> Self {
-        Self {
-            base_url: base_url.into(),
-        }
+        Self { base_url: base_url.into() }
     }
 }
 
@@ -287,12 +261,7 @@ impl ApiProvider for AnthropicProvider {
         "anthropic-messages"
     }
 
-    fn stream(
-        &self,
-        model: &Model,
-        context: Context,
-        options: StreamOptions,
-    ) -> AssistantMessageEventStream {
+    fn stream(&self, model: &Model, context: Context, options: StreamOptions) -> AssistantMessageEventStream {
         let (tx, rx) = AssistantMessageEventStream::new();
         let model = model.clone();
         let base_url = self.base_url.clone();
@@ -334,22 +303,16 @@ async fn process_stream(
     let body = build_request_body(model, &context, &options, is_oauth);
 
     // 4. Send the HTTP request.
-    let client = reqwest::Client::builder()
-        .timeout(std::time::Duration::from_secs(options.timeout.unwrap_or(120)))
-        .build()?;
+    let client =
+        reqwest::Client::builder().timeout(std::time::Duration::from_secs(options.timeout.unwrap_or(120))).build()?;
 
-    let mut req = client
-        .post(base_url)
-        .header("Content-Type", "application/json")
-        .header("anthropic-version", "2023-06-01");
+    let mut req =
+        client.post(base_url).header("Content-Type", "application/json").header("anthropic-version", "2023-06-01");
 
     // Set auth header based on token type.
     if is_oauth {
         req = req.header("Authorization", format!("Bearer {api_key}"));
-        req = req.header(
-            "anthropic-dangerous-direct-browser-access",
-            "true",
-        );
+        req = req.header("anthropic-dangerous-direct-browser-access", "true");
         // Add beta headers for OAuth.
         req = req.header("anthropic-beta", {
             let betas = [INTERLEAVED_THINKING_BETA];
@@ -360,18 +323,10 @@ async fn process_stream(
         req = req.header("anthropic-beta", INTERLEAVED_THINKING_BETA);
     }
 
-    let response = req
-        .json(&body)
-        .send()
-        .await
-        .map_err(|e| {
-            emit_error(
-                &tx,
-                format!("HTTP request failed: {e}"),
-                Some("request_error".to_owned()),
-            );
-            e
-        })?;
+    let response = req.json(&body).send().await.map_err(|e| {
+        emit_error(&tx, format!("HTTP request failed: {e}"), Some("request_error".to_owned()));
+        e
+    })?;
 
     // 5. Check the HTTP status code.
     if !response.status().is_success() {
@@ -386,16 +341,10 @@ async fn process_stream(
     }
 
     // Ensure it's a SSE response.
-    let content_type = response
-        .headers()
-        .get(reqwest::header::CONTENT_TYPE)
-        .and_then(|v| v.to_str().ok())
-        .unwrap_or("");
+    let content_type =
+        response.headers().get(reqwest::header::CONTENT_TYPE).and_then(|v| v.to_str().ok()).unwrap_or("");
     if !content_type.contains("text/event-stream") {
-        tracing::warn!(
-            "Expected text/event-stream, got: {}",
-            content_type
-        );
+        tracing::warn!("Expected text/event-stream, got: {}", content_type);
     }
 
     // 6. Emit the Start event.
@@ -404,21 +353,13 @@ async fn process_stream(
     // 7. Process the SSE response body.
     let mut state = AnthropicStreamState::default();
     if let Err(e) = process_sse_stream(&tx, response, &mut state).await {
-        emit_error(
-            &tx,
-            format!("SSE stream error: {e}"),
-            Some("stream_error".to_owned()),
-        );
+        emit_error(&tx, format!("SSE stream error: {e}"), Some("stream_error".to_owned()));
         return Ok(());
     }
 
     // Validate that we saw both start and stop.
     if state.saw_message_start && !state.saw_message_stop {
-        emit_error(
-            &tx,
-            "Anthropic stream ended before message_stop".to_owned(),
-            Some("incomplete_stream".to_owned()),
-        );
+        emit_error(&tx, "Anthropic stream ended before message_stop".to_owned(), Some("incomplete_stream".to_owned()));
         return Ok(());
     }
 
@@ -427,10 +368,7 @@ async fn process_stream(
     let stop_reason = state.stop_reason.clone().unwrap_or_else(|| "stop".to_owned());
     let message = build_done_message(&state, model, usage.clone());
 
-    let _ = tx.send(StreamEvent::Done {
-        message: Some(message),
-        stop_reason: Some(stop_reason),
-    });
+    let _ = tx.send(StreamEvent::Done { message: Some(message), stop_reason: Some(stop_reason) });
 
     Ok(())
 }
@@ -473,7 +411,6 @@ async fn process_sse_stream(
 
         // Process as many complete lines as possible.
         while let Some(newline_pos) = buffer.iter().position(|&b| b == b'\n') {
-
             let raw_line: Vec<u8> = buffer.drain(..=newline_pos).collect();
             let line_str = String::from_utf8_lossy(strip_line_ending(&raw_line));
 
@@ -485,9 +422,7 @@ async fn process_sse_stream(
 
                     // Filter to known Anthropic message events.
                     if ANTHROPIC_MESSAGE_EVENTS.contains(&event_type.as_str()) {
-                        if let Err(e) =
-                            dispatch_event(tx, &event_type, &data, state)
-                        {
+                        if let Err(e) = dispatch_event(tx, &event_type, &data, state) {
                             tracing::warn!("Error processing event {event_type}: {e}");
                         }
                     } else if event_type == "error" {
@@ -530,16 +465,8 @@ async fn process_sse_stream(
 
 /// Strip trailing `\r` or `\r\n` from a line ending byte sequence.
 fn strip_line_ending(bytes: &[u8]) -> &[u8] {
-    let bytes = if bytes.ends_with(b"\n") {
-        &bytes[..bytes.len() - 1]
-    } else {
-        bytes
-    };
-    if bytes.ends_with(b"\r") {
-        &bytes[..bytes.len() - 1]
-    } else {
-        bytes
-    }
+    let bytes = if bytes.ends_with(b"\n") { &bytes[..bytes.len() - 1] } else { bytes };
+    if bytes.ends_with(b"\r") { &bytes[..bytes.len() - 1] } else { bytes }
 }
 
 // ---------------------------------------------------------------------------
@@ -554,13 +481,8 @@ fn dispatch_event(
     state: &mut AnthropicStreamState,
 ) -> Result<(), String> {
     // Parse the JSON payload using the tagged `type` field.
-    let payload: AnthropicStreamPayload =
-        serde_json::from_str(data).map_err(|e| {
-            format!(
-                "Could not parse Anthropic SSE event {}: {}; data={}",
-                _event_type, e, data
-            )
-        })?;
+    let payload: AnthropicStreamPayload = serde_json::from_str(data)
+        .map_err(|e| format!("Could not parse Anthropic SSE event {}: {}; data={}", _event_type, e, data))?;
 
     match payload {
         AnthropicStreamPayload::MessageStart { message } => {
@@ -590,10 +512,7 @@ fn dispatch_event(
                         let _ = tx.send(StreamEvent::TextDelta { delta: text });
                     }
                 }
-                AnthropicContentBlockInfo::Thinking {
-                    thinking,
-                    signature: _sig,
-                } => {
+                AnthropicContentBlockInfo::Thinking { thinking, signature: _sig } => {
                     state.thinking.push_str(&thinking);
                     state.thinking_redacted = false;
                     // The signature from content_block_start is the initial one;
@@ -604,15 +523,9 @@ fn dispatch_event(
                     state.thinking.push_str("[Reasoning redacted]");
                     state.thinking_signature = Some(data);
                     state.thinking_redacted = true;
-                    let _ = tx.send(StreamEvent::ThinkingDelta {
-                        delta: "[Reasoning redacted]".to_owned(),
-                    });
+                    let _ = tx.send(StreamEvent::ThinkingDelta { delta: "[Reasoning redacted]".to_owned() });
                 }
-                AnthropicContentBlockInfo::ToolUse {
-                    id,
-                    name,
-                    input,
-                } => {
+                AnthropicContentBlockInfo::ToolUse { id, name, input } => {
                     let builder = state.get_or_create_tool_call(index);
                     builder.id = id.clone();
                     builder.name = name.clone();
@@ -621,24 +534,16 @@ fn dispatch_event(
                     // Empty object `{}` means streaming mode — skip serialization
                     // to avoid duplicating with input_json_delta events.
                     if !input.is_null() {
-                        let is_empty = input
-                            .as_object()
-                            .map(|obj| obj.is_empty())
-                            .unwrap_or(false);
+                        let is_empty = input.as_object().map(|obj| obj.is_empty()).unwrap_or(false);
                         if !is_empty {
-                            let args_str = serde_json::to_string(&input)
-                                .unwrap_or_else(|_| "{}".to_owned());
+                            let args_str = serde_json::to_string(&input).unwrap_or_else(|_| "{}".to_owned());
                             builder.arguments = args_str;
                         }
                     }
 
                     // Emit the initial tool call event with id and name.
-                    let _ = tx.send(StreamEvent::ToolCallDelta {
-                        index,
-                        id: Some(id),
-                        name: Some(name),
-                        arguments: None,
-                    });
+                    let _ =
+                        tx.send(StreamEvent::ToolCallDelta { index, id: Some(id), name: Some(name), arguments: None });
                     builder.id_emitted = true;
                     builder.name_emitted = true;
                 }
@@ -689,10 +594,7 @@ fn dispatch_event(
             // All deltas have already been pushed.
         }
 
-        AnthropicStreamPayload::MessageDelta {
-            delta,
-            usage,
-        } => {
+        AnthropicStreamPayload::MessageDelta { delta, usage } => {
             if let Some(ref reason) = delta.stop_reason {
                 state.stop_reason = Some(map_stop_reason(reason));
             }
@@ -728,13 +630,7 @@ fn dispatch_event(
         AnthropicStreamPayload::Error { error } => {
             let msg = error.message.unwrap_or_else(|| "Unknown error".to_owned());
             let code = error.r#type;
-            let _ = tx.send(StreamEvent::Error {
-                error: StreamError {
-                    message: msg,
-                    code,
-                    r#type: None,
-                },
-            });
+            let _ = tx.send(StreamEvent::Error { error: StreamError { message: msg, code, r#type: None } });
         }
     }
 
@@ -746,11 +642,7 @@ fn dispatch_event(
 // ---------------------------------------------------------------------------
 
 /// Build the final [`Message`] from the accumulated streaming state.
-fn build_done_message(
-    state: &AnthropicStreamState,
-    _model: &Model,
-    usage: Usage,
-) -> Message {
+fn build_done_message(state: &AnthropicStreamState, _model: &Model, usage: Usage) -> Message {
     let mut content: Vec<ContentBlock> = Vec::new();
 
     // Add thinking block if we have thinking content.
@@ -763,9 +655,7 @@ fn build_done_message(
 
     // Add text block if we have text content.
     if !state.text.is_empty() {
-        content.push(ContentBlock::Text(TextContent {
-            text: state.text.clone(),
-        }));
+        content.push(ContentBlock::Text(TextContent { text: state.text.clone() }));
     }
 
     // Add tool call blocks.
@@ -773,10 +663,8 @@ fn build_done_message(
     tool_indices.sort();
     for idx in tool_indices {
         if let Some(builder) = state.tool_calls.get(&idx) {
-            let parsed_args: serde_json::Value =
-                serde_json::from_str(&builder.arguments).unwrap_or_else(|_| {
-                    serde_json::Value::String(builder.arguments.clone())
-                });
+            let parsed_args: serde_json::Value = serde_json::from_str(&builder.arguments)
+                .unwrap_or_else(|_| serde_json::Value::String(builder.arguments.clone()));
 
             content.push(ContentBlock::ToolCall(ToolCallContent {
                 id: builder.id.clone(),
@@ -818,18 +706,11 @@ fn build_usage(state: &AnthropicStreamState) -> Usage {
 // ---------------------------------------------------------------------------
 
 /// Build the JSON request body for the Anthropic Messages API.
-fn build_request_body(
-    model: &Model,
-    context: &Context,
-    options: &StreamOptions,
-    is_oauth: bool,
-) -> serde_json::Value {
+fn build_request_body(model: &Model, context: &Context, options: &StreamOptions, is_oauth: bool) -> serde_json::Value {
     let messages = convert_messages(context, is_oauth);
     let tools = convert_tools(context, is_oauth);
 
-    let max_tokens = options
-        .max_tokens
-        .unwrap_or_else(|| model.max_tokens.unwrap_or(4096).max(MIN_OUTPUT_TOKENS));
+    let max_tokens = options.max_tokens.unwrap_or_else(|| model.max_tokens.unwrap_or(4096).max(MIN_OUTPUT_TOKENS));
 
     let mut body = serde_json::json!({
         "model": model.id,
@@ -939,10 +820,7 @@ fn convert_messages(context: &Context, _is_oauth: bool) -> Vec<serde_json::Value
 
 /// Convert a user message to Anthropic format.
 fn convert_user_message(msg: &Message) -> Option<serde_json::Value> {
-    let has_images = msg
-        .content
-        .iter()
-        .any(|b| matches!(b, ContentBlock::Image(_)));
+    let has_images = msg.content.iter().any(|b| matches!(b, ContentBlock::Image(_)));
 
     if !has_images {
         // Simple text-only message.
@@ -1139,12 +1017,7 @@ fn convert_tools(context: &Context, _is_oauth: bool) -> Vec<serde_json::Value> {
         .iter()
         .map(|tool| {
             let properties = tool.parameters.get("properties").cloned().unwrap_or_default();
-            let required = tool
-                .parameters
-                .get("required")
-                .and_then(|v| v.as_array())
-                .cloned()
-                .unwrap_or_default();
+            let required = tool.parameters.get("required").and_then(|v| v.as_array()).cloned().unwrap_or_default();
 
             serde_json::json!({
                 "name": tool.name,
@@ -1192,11 +1065,9 @@ fn resolve_api_key(options: &StreamOptions) -> Result<String, String> {
     }
     match std::env::var("ANTHROPIC_API_KEY") {
         Ok(key) if !key.is_empty() => Ok(key),
-        _ => Err(
-            "Anthropic API key is required. Set the ANTHROPIC_API_KEY environment \
+        _ => Err("Anthropic API key is required. Set the ANTHROPIC_API_KEY environment \
              variable or pass `api_key` in `StreamOptions`."
-                .to_owned(),
-        ),
+            .to_owned()),
     }
 }
 
@@ -1208,13 +1079,7 @@ fn resolve_api_key(options: &StreamOptions) -> Result<String, String> {
 fn extract_text(content: &[ContentBlock]) -> String {
     content
         .iter()
-        .filter_map(|block| {
-            if let ContentBlock::Text(t) = block {
-                Some(t.text.as_str())
-            } else {
-                None
-            }
-        })
+        .filter_map(|block| if let ContentBlock::Text(t) = block { Some(t.text.as_str()) } else { None })
         .collect::<Vec<&str>>()
         .join("\n")
 }
@@ -1223,13 +1088,7 @@ fn extract_text(content: &[ContentBlock]) -> String {
 fn emit_error(tx: &EventStreamSender<StreamEvent>, message: impl Into<String>, code: Option<String>) {
     let msg: String = message.into();
     tracing::error!("{msg}");
-    let _ = tx.send(StreamEvent::Error {
-        error: StreamError {
-            message: msg,
-            code,
-            r#type: None,
-        },
-    });
+    let _ = tx.send(StreamEvent::Error { error: StreamError { message: msg, code, r#type: None } });
 }
 
 // ---------------------------------------------------------------------------
@@ -1239,11 +1098,11 @@ fn emit_error(tx: &EventStreamSender<StreamEvent>, message: impl Into<String>, c
 #[cfg(test)]
 mod tests {
     use super::*;
-    use serial_test::serial;
     use pi_ai_core::api_registry::{clear_api_providers, register_api_provider};
     use pi_ai_core::event_stream::collect_stream;
     use pi_ai_core::stream;
     use pi_ai_core::types::{KnownProvider, ToolDefinition};
+    use serial_test::serial;
     use wiremock::matchers::{method, path};
     use wiremock::{Mock, MockServer, ResponseTemplate};
 
@@ -1273,8 +1132,7 @@ mod tests {
     }
 
     async fn setup_provider(mock_server: &MockServer) {
-        let provider =
-            AnthropicProvider::with_base_url(format!("{}/v1/messages", mock_server.uri()));
+        let provider = AnthropicProvider::with_base_url(format!("{}/v1/messages", mock_server.uri()));
         clear_api_providers().await;
         register_api_provider(Box::new(provider)).await;
     }
@@ -1300,9 +1158,7 @@ mod tests {
         Mock::given(method("POST"))
             .and(path("/v1/messages"))
             .respond_with(
-                ResponseTemplate::new(status)
-                    .set_body_string(body)
-                    .insert_header("content-type", "application/json"),
+                ResponseTemplate::new(status).set_body_string(body).insert_header("content-type", "application/json"),
             )
             .mount(mock_server)
             .await;
@@ -1313,7 +1169,7 @@ mod tests {
     // ------------------------------------------------------------------
 
     #[serial]
-#[tokio::test]
+    #[tokio::test]
     async fn test_anthropic_text_stream() {
         ensure_api_key();
         let mock = MockServer::start().await;
@@ -1345,19 +1201,16 @@ mod tests {
         setup_provider(&mock).await;
 
         let model = test_model();
-        let context = Context {
-            messages: vec![Message::user_text("Hi")],
-            system_prompt: None,
-            model: None,
-            tools: vec![],
-        };
+        let context =
+            Context { messages: vec![Message::user_text("Hi")], system_prompt: None, model: None, tools: vec![] };
 
-        let stream = stream::stream(&model, context, StreamOptions {
-            api_key: Some("sk-ant-test-key".into()),
-            ..Default::default()
-        })
-            .await
-            .expect("stream() should return a stream");
+        let stream = stream::stream(
+            &model,
+            context,
+            StreamOptions { api_key: Some("sk-ant-test-key".into()), ..Default::default() },
+        )
+        .await
+        .expect("stream() should return a stream");
         let result = collect_stream(stream, &model).await.expect("collect should succeed");
 
         let text = extract_text(&result.message.content);
@@ -1366,7 +1219,7 @@ mod tests {
     }
 
     #[serial]
-#[tokio::test]
+    #[tokio::test]
     async fn test_anthropic_text_with_system_prompt() {
         ensure_api_key();
         let mock = MockServer::start().await;
@@ -1402,12 +1255,13 @@ mod tests {
             tools: vec![],
         };
 
-        let stream = stream::stream(&model, context, StreamOptions {
-            api_key: Some("sk-ant-test-key".into()),
-            ..Default::default()
-        })
-            .await
-            .expect("stream() should return a stream");
+        let stream = stream::stream(
+            &model,
+            context,
+            StreamOptions { api_key: Some("sk-ant-test-key".into()), ..Default::default() },
+        )
+        .await
+        .expect("stream() should return a stream");
         let result = collect_stream(stream, &model).await.expect("collect should succeed");
 
         let text = extract_text(&result.message.content);
@@ -1419,7 +1273,7 @@ mod tests {
     // ------------------------------------------------------------------
 
     #[serial]
-#[tokio::test]
+    #[tokio::test]
     async fn test_anthropic_thinking_stream() {
         ensure_api_key();
         let mock = MockServer::start().await;
@@ -1467,41 +1321,26 @@ mod tests {
             tools: vec![],
         };
 
-        let stream = stream::stream(&model, context, StreamOptions {
-            api_key: Some("sk-ant-test-key".into()),
-            thinking: Some(true),
-            ..Default::default()
-        })
-            .await
-            .expect("stream() should return a stream");
+        let stream = stream::stream(
+            &model,
+            context,
+            StreamOptions { api_key: Some("sk-ant-test-key".into()), thinking: Some(true), ..Default::default() },
+        )
+        .await
+        .expect("stream() should return a stream");
         let result = collect_stream(stream, &model).await.expect("collect should succeed");
 
         let message = &result.message;
         // Should have at least 2 blocks: thinking + text
-        assert!(
-            message.content.len() >= 2,
-            "Expected at least 2 content blocks, got {}",
-            message.content.len()
-        );
+        assert!(message.content.len() >= 2, "Expected at least 2 content blocks, got {}", message.content.len());
 
         // Check thinking block
-        let thinking_block = message.content.iter().find_map(|b| {
-            if let ContentBlock::Thinking(th) = b {
-                Some(th)
-            } else {
-                None
-            }
-        });
-        assert!(
-            thinking_block.is_some(),
-            "Expected a thinking content block"
-        );
+        let thinking_block =
+            message.content.iter().find_map(|b| if let ContentBlock::Thinking(th) = b { Some(th) } else { None });
+        assert!(thinking_block.is_some(), "Expected a thinking content block");
         let thinking = thinking_block.unwrap();
         assert_eq!(thinking.thinking, "Let me think about this");
-        assert_eq!(
-            thinking.signature,
-            Some("EqoBCkgIARAhGAAyDwoN".to_owned())
-        );
+        assert_eq!(thinking.signature, Some("EqoBCkgIARAhGAAyDwoN".to_owned()));
 
         // Check text block
         let text = extract_text(&message.content);
@@ -1509,7 +1348,7 @@ mod tests {
     }
 
     #[serial]
-#[tokio::test]
+    #[tokio::test]
     async fn test_anthropic_redacted_thinking() {
         ensure_api_key();
         let mock = MockServer::start().await;
@@ -1544,33 +1383,22 @@ mod tests {
         setup_provider(&mock).await;
 
         let model = test_model();
-        let context = Context {
-            messages: vec![Message::user_text("Hi")],
-            system_prompt: None,
-            model: None,
-            tools: vec![],
-        };
+        let context =
+            Context { messages: vec![Message::user_text("Hi")], system_prompt: None, model: None, tools: vec![] };
 
-        let stream = stream::stream(&model, context, StreamOptions {
-            api_key: Some("sk-ant-test-key".into()),
-            ..Default::default()
-        })
-            .await
-            .expect("stream() should return a stream");
+        let stream = stream::stream(
+            &model,
+            context,
+            StreamOptions { api_key: Some("sk-ant-test-key".into()), ..Default::default() },
+        )
+        .await
+        .expect("stream() should return a stream");
         let result = collect_stream(stream, &model).await.expect("collect should succeed");
 
         let message = &result.message;
-        let thinking_block = message.content.iter().find_map(|b| {
-            if let ContentBlock::Thinking(th) = b {
-                Some(th)
-            } else {
-                None
-            }
-        });
-        assert!(
-            thinking_block.is_some(),
-            "Expected a thinking content block for redacted thinking"
-        );
+        let thinking_block =
+            message.content.iter().find_map(|b| if let ContentBlock::Thinking(th) = b { Some(th) } else { None });
+        assert!(thinking_block.is_some(), "Expected a thinking content block for redacted thinking");
         let thinking = thinking_block.unwrap();
         assert_eq!(thinking.thinking, "[Reasoning redacted]");
         assert_eq!(thinking.signature, Some("encrypted_blob".to_owned()));
@@ -1581,7 +1409,7 @@ mod tests {
     // ------------------------------------------------------------------
 
     #[serial]
-#[tokio::test]
+    #[tokio::test]
     async fn test_anthropic_tool_call() {
         ensure_api_key();
         let mock = MockServer::start().await;
@@ -1637,20 +1465,17 @@ mod tests {
             }],
         };
 
-        let stream = stream::stream(&model, context, StreamOptions {
-            api_key: Some("sk-ant-test-key".into()),
-            ..Default::default()
-        })
-            .await
-            .expect("stream() should return a stream");
+        let stream = stream::stream(
+            &model,
+            context,
+            StreamOptions { api_key: Some("sk-ant-test-key".into()), ..Default::default() },
+        )
+        .await
+        .expect("stream() should return a stream");
         let result = collect_stream(stream, &model).await.expect("collect should succeed");
 
         // Should have text + tool call.
-        let has_tool_call = result
-            .message
-            .content
-            .iter()
-            .any(|b| matches!(b, ContentBlock::ToolCall(_)));
+        let has_tool_call = result.message.content.iter().any(|b| matches!(b, ContentBlock::ToolCall(_)));
         assert!(has_tool_call, "Expected a tool call in the result");
 
         // Verify tool call content.
@@ -1670,66 +1495,47 @@ mod tests {
     // ------------------------------------------------------------------
 
     #[serial]
-#[tokio::test]
+    #[tokio::test]
     async fn test_anthropic_api_key_error() {
         ensure_api_key();
         // Use a provider with no mock — should error on connection failure.
         let model = test_model();
-        let context = Context {
-            messages: vec![Message::user_text("Hi")],
-            system_prompt: None,
-            model: None,
-            tools: vec![],
-        };
+        let context =
+            Context { messages: vec![Message::user_text("Hi")], system_prompt: None, model: None, tools: vec![] };
 
         let provider = AnthropicProvider::new();
         clear_api_providers().await;
         register_api_provider(Box::new(provider)).await;
 
-        let stream = stream::stream(&model, context, StreamOptions::default())
-            .await
-            .expect("stream() should return a stream");
+        let stream =
+            stream::stream(&model, context, StreamOptions::default()).await.expect("stream() should return a stream");
         let result = collect_stream(stream, &model).await;
 
-        assert!(
-            result.is_err(),
-            "Expected an error when no API key is available"
-        );
+        assert!(result.is_err(), "Expected an error when no API key is available");
     }
 
     #[serial]
-#[tokio::test]
+    #[tokio::test]
     async fn test_anthropic_http_error() {
         ensure_api_key();
         let mock = MockServer::start().await;
-        mount_error(
-            &mock,
-            401,
-            r#"{"error":{"message":"Invalid API key","type":"auth_error"}}"#,
-        )
-        .await;
+        mount_error(&mock, 401, r#"{"error":{"message":"Invalid API key","type":"auth_error"}}"#).await;
         setup_provider(&mock).await;
 
         let model = test_model();
-        let context = Context {
-            messages: vec![Message::user_text("Hi")],
-            system_prompt: None,
-            model: None,
-            tools: vec![],
-        };
+        let context =
+            Context { messages: vec![Message::user_text("Hi")], system_prompt: None, model: None, tools: vec![] };
 
-        let stream = stream::stream(&model, context, StreamOptions {
-            api_key: Some("sk-ant-test-key".into()),
-            ..Default::default()
-        })
-            .await
-            .expect("stream() should return a stream");
+        let stream = stream::stream(
+            &model,
+            context,
+            StreamOptions { api_key: Some("sk-ant-test-key".into()), ..Default::default() },
+        )
+        .await
+        .expect("stream() should return a stream");
         let result = collect_stream(stream, &model).await;
 
-        assert!(
-            result.is_err(),
-            "Expected an error for HTTP 401"
-        );
+        assert!(result.is_err(), "Expected an error for HTTP 401");
     }
 
     // ------------------------------------------------------------------
@@ -1739,12 +1545,7 @@ mod tests {
     #[test]
     fn test_convert_user_message_text_only() {
         let msg = Message::user_text("Hello");
-        let context = Context {
-            messages: vec![msg],
-            system_prompt: None,
-            model: None,
-            tools: vec![],
-        };
+        let context = Context { messages: vec![msg], system_prompt: None, model: None, tools: vec![] };
         let messages = convert_messages(&context, false);
         assert_eq!(messages.len(), 1);
         assert_eq!(messages[0]["role"], "user");
@@ -1756,9 +1557,7 @@ mod tests {
         let msg = Message {
             role: MessageRole::User,
             content: vec![
-                ContentBlock::Text(TextContent {
-                    text: "What's in this image?".into(),
-                }),
+                ContentBlock::Text(TextContent { text: "What's in this image?".into() }),
                 ContentBlock::Image(ImageContent {
                     source: ImageSource::Base64 {
                         media_type: "image/png".into(),
@@ -1771,12 +1570,7 @@ mod tests {
             usage: None,
             redacted: false,
         };
-        let context = Context {
-            messages: vec![msg],
-            system_prompt: None,
-            model: None,
-            tools: vec![],
-        };
+        let context = Context { messages: vec![msg], system_prompt: None, model: None, tools: vec![] };
         let messages = convert_messages(&context, false);
         assert_eq!(messages.len(), 1);
 
@@ -1797,9 +1591,7 @@ mod tests {
                     thinking: "Let me reason...".into(),
                     signature: Some("sig123".into()),
                 }),
-                ContentBlock::Text(TextContent {
-                    text: "I'll look that up.".into(),
-                }),
+                ContentBlock::Text(TextContent { text: "I'll look that up.".into() }),
                 ContentBlock::ToolCall(ToolCallContent {
                     id: "toolu_abc".into(),
                     name: "search_web".into(),
@@ -1811,12 +1603,7 @@ mod tests {
             usage: None,
             redacted: false,
         };
-        let context = Context {
-            messages: vec![msg],
-            system_prompt: None,
-            model: None,
-            tools: vec![],
-        };
+        let context = Context { messages: vec![msg], system_prompt: None, model: None, tools: vec![] };
         let messages = convert_messages(&context, false);
         assert_eq!(messages.len(), 1);
 
@@ -1846,9 +1633,7 @@ mod tests {
             content: vec![ContentBlock::ToolResult(ToolResultContent {
                 id: "toolu_1".into(),
                 name: "get_weather".into(),
-                content: Some(vec![ContentBlock::Text(TextContent {
-                    text: "72 degrees".into(),
-                })]),
+                content: Some(vec![ContentBlock::Text(TextContent { text: "72 degrees".into() })]),
                 error: None,
                 is_error: false,
             })],
@@ -1857,12 +1642,7 @@ mod tests {
             usage: None,
             redacted: false,
         };
-        let context = Context {
-            messages: vec![tool_msg],
-            system_prompt: None,
-            model: None,
-            tools: vec![],
-        };
+        let context = Context { messages: vec![tool_msg], system_prompt: None, model: None, tools: vec![] };
         let messages = convert_messages(&context, false);
         assert_eq!(messages.len(), 1);
 
@@ -1882,9 +1662,7 @@ mod tests {
             content: vec![ContentBlock::ToolResult(ToolResultContent {
                 id: "toolu_1".into(),
                 name: "get_weather".into(),
-                content: Some(vec![ContentBlock::Text(TextContent {
-                    text: "72 degrees".into(),
-                })]),
+                content: Some(vec![ContentBlock::Text(TextContent { text: "72 degrees".into() })]),
                 error: None,
                 is_error: false,
             })],
@@ -1898,9 +1676,7 @@ mod tests {
             content: vec![ContentBlock::ToolResult(ToolResultContent {
                 id: "toolu_2".into(),
                 name: "get_time".into(),
-                content: Some(vec![ContentBlock::Text(TextContent {
-                    text: "12:00 PM".into(),
-                })]),
+                content: Some(vec![ContentBlock::Text(TextContent { text: "12:00 PM".into() })]),
                 error: None,
                 is_error: false,
             })],
@@ -1909,12 +1685,8 @@ mod tests {
             usage: None,
             redacted: false,
         };
-        let context = Context {
-            messages: vec![tool_msg_1, tool_msg_2],
-            system_prompt: None,
-            model: None,
-            tools: vec![],
-        };
+        let context =
+            Context { messages: vec![tool_msg_1, tool_msg_2], system_prompt: None, model: None, tools: vec![] };
         let messages = convert_messages(&context, false);
         assert_eq!(messages.len(), 1);
 
@@ -1939,20 +1711,12 @@ mod tests {
             }),
             strict: Some(false),
         }];
-        let context = Context {
-            messages: vec![],
-            system_prompt: None,
-            model: None,
-            tools,
-        };
+        let context = Context { messages: vec![], system_prompt: None, model: None, tools };
         let converted = convert_tools(&context, false);
         assert_eq!(converted.len(), 1);
         assert_eq!(converted[0]["name"], "get_weather");
         assert_eq!(converted[0]["input_schema"]["type"], "object");
-        assert_eq!(
-            converted[0]["input_schema"]["required"],
-            serde_json::json!(["location"])
-        );
+        assert_eq!(converted[0]["input_schema"]["required"], serde_json::json!(["location"]));
     }
 
     // ------------------------------------------------------------------
@@ -1989,14 +1753,8 @@ mod tests {
     #[test]
     fn test_normalize_tool_call_id() {
         assert_eq!(normalize_tool_call_id("simple_id"), "simple_id");
-        assert_eq!(
-            normalize_tool_call_id("id|with|pipes"),
-            "id_with_pipes"
-        );
-        assert_eq!(
-            normalize_tool_call_id("id_with_special_chars!@#"),
-            "id_with_special_chars___"
-        );
+        assert_eq!(normalize_tool_call_id("id|with|pipes"), "id_with_pipes");
+        assert_eq!(normalize_tool_call_id("id_with_special_chars!@#"), "id_with_special_chars___");
         // Test truncation
         let long_id = "a".repeat(100);
         assert_eq!(normalize_tool_call_id(&long_id).len(), 64);
@@ -2008,7 +1766,7 @@ mod tests {
 
     /// Ensure env vars are reset after tests.
     #[serial]
-#[tokio::test]
+    #[tokio::test]
     async fn cleanup_env() {
         unsafe {
             std::env::remove_var("ANTHROPIC_API_KEY");

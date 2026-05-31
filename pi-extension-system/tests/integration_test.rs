@@ -207,9 +207,8 @@ const EXTENSION_WITH_TOOL_WAT: &str = r#"
 fn test_minimal_extension_lifecycle() {
     let wasm_bytes = wat::parse_str(MINIMAL_EXTENSION_WAT).expect("WAT should compile");
     let sandbox = pi_extension_system::sandbox::SandboxConfig::default();
-    let mut runtime =
-        pi_extension_system::runtime::ExtensionRuntime::new(&wasm_bytes, sandbox)
-            .expect("ExtensionRuntime should be created");
+    let mut runtime = pi_extension_system::runtime::ExtensionRuntime::new(&wasm_bytes, sandbox)
+        .expect("ExtensionRuntime should be created");
 
     // init
     runtime.call_init().expect("init should succeed");
@@ -218,9 +217,7 @@ fn test_minimal_extension_lifecycle() {
     assert!(runtime.registered_tools().is_empty());
 
     // Call tool_handler
-    let result = runtime
-        .call_tool("test", r#"{}"#)
-        .expect("tool_handler should succeed");
+    let result = runtime.call_tool("test", r#"{}"#).expect("tool_handler should succeed");
     assert_eq!(result, r#"{"result":"ok"}"#);
 }
 
@@ -228,9 +225,8 @@ fn test_minimal_extension_lifecycle() {
 fn test_extension_with_tool_registration() {
     let wasm_bytes = wat::parse_str(EXTENSION_WITH_TOOL_WAT).expect("WAT should compile");
     let sandbox = pi_extension_system::sandbox::SandboxConfig::default();
-    let mut runtime =
-        pi_extension_system::runtime::ExtensionRuntime::new(&wasm_bytes, sandbox)
-            .expect("ExtensionRuntime should be created");
+    let mut runtime = pi_extension_system::runtime::ExtensionRuntime::new(&wasm_bytes, sandbox)
+        .expect("ExtensionRuntime should be created");
 
     // init — this extension registers a tool during init
     runtime.call_init().expect("init should succeed");
@@ -242,8 +238,6 @@ fn test_extension_with_tool_registration() {
     assert_eq!(tools[0].description, "A test tool");
 
     // Call tool_handler
-    let result = runtime
-        .call_tool("my_tool", r#"{}"#)
-        .expect("tool_handler should succeed");
+    let result = runtime.call_tool("my_tool", r#"{}"#).expect("tool_handler should succeed");
     assert_eq!(result, r#"{"result":"ok"}"#);
 }

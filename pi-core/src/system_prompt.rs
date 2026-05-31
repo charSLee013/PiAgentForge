@@ -84,10 +84,7 @@ pub fn build_system_prompt(opts: &SystemPromptOptions) -> String {
 /// Append date and working directory footer.
 fn append_footer(prompt: &mut String, cwd: &str) {
     use std::time::{SystemTime, UNIX_EPOCH};
-    let secs = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_secs();
+    let secs = SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_secs();
 
     // Format date as YYYY-MM-DD
     let days = secs / 86400;
@@ -114,10 +111,8 @@ mod tests {
 
     #[test]
     fn test_custom_prompt_no_tools() {
-        let opts = SystemPromptOptions {
-            custom_prompt: Some("You are a helpful assistant.".into()),
-            ..Default::default()
-        };
+        let opts =
+            SystemPromptOptions { custom_prompt: Some("You are a helpful assistant.".into()), ..Default::default() };
         let prompt = build_system_prompt(&opts);
         assert!(prompt.starts_with("You are a helpful assistant."));
     }
@@ -138,10 +133,7 @@ mod tests {
             base_dir: ".".into(),
             disable_model_invocation: false,
         };
-        let opts = SystemPromptOptions {
-            skills: vec![skill],
-            ..Default::default()
-        };
+        let opts = SystemPromptOptions { skills: vec![skill], ..Default::default() };
         let prompt = build_system_prompt(&opts);
         assert!(prompt.contains("test"));
     }

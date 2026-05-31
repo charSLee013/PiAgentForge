@@ -11,12 +11,20 @@ pub mod args;
 
 use anyhow::{Context as AnyhowContext, Result};
 use pi_ai_core::api_registry::register_api_provider;
+use pi_ai_core::thinking::{
+    clamp_thinking_level, default_thinking_level_for_model, is_valid_thinking_level, thinking_enabled,
+};
 use pi_ai_core::types::{ContentBlock, Context, KnownProvider, Model, StreamOptions};
 use pi_core::auth::AuthStorage;
 use pi_core::settings::Settings;
-use pi_provider_openai::OpenAiCompletionsProvider;
+use pi_core::tool_registry::{self, ToolSelection};
 #[cfg(feature = "feat-anthropic")]
 use pi_provider_anthropic::AnthropicProvider;
+#[cfg(feature = "feat-google")]
+use pi_provider_google::GoogleProvider;
+#[cfg(feature = "feat-mistral")]
+use pi_provider_mistral::MistralProvider;
+use pi_provider_openai::OpenAiCompletionsProvider;
 
 // ---------------------------------------------------------------------------
 // Session configuration
@@ -39,8 +47,8 @@ pub struct SessionConfig {
     pub system_prompt: Option<String>,
     /// The user prompt / message text.
     pub prompt: String,
-    /// Whether thinking mode is enabled.
-    pub thinking: bool,
+    /// Thinking level requested for the session.
+    pub thinking_level: String,
     /// Custom base URL for OpenAI-compatible endpoints (from CLI or settings).
     pub base_url: Option<String>,
 }
@@ -79,13 +87,21 @@ impl SessionConfig {
         let effective_provider = args.provider.clone().or_else(|| settings.default_provider.clone());
 
         // Rebuild partial args with settings fallbacks for model resolution
-        let merged_args = args::Args {
-            model: effective_model,
-            provider: effective_provider,
-            ..args.clone()
-        };
+        let merged_args = args::Args { model: effective_model, provider: effective_provider, ..args.clone() };
 
         let model = resolve_model(&merged_args, effective_base_url.as_deref())?;
+
+        let requested_thinking_level = args
+            .thinking_level
+            .as_deref()
+            .or(if args.thinking { Some("low") } else { None })
+            .unwrap_or(default_thinking_level_for_model(model));
+        if !is_valid_thinking_level(requested_thinking_level) {
+            anyhow::bail!(
+                "Invalid thinking level '{}'. Valid values: off, minimal, low, medium, high, xhigh",
+                requested_thinking_level
+            );
+        }
 
         // API key priority: 1. CLI/settings combined above, 2. env var, 3. auth.json
         let api_key = resolve_api_key(effective_api_key, &model.provider);
@@ -96,7 +112,7 @@ impl SessionConfig {
             api_key,
             system_prompt: args.system_prompt.clone(),
             prompt: args.prompt.join(" "),
-            thinking: args.thinking,
+            thinking_level: clamp_thinking_level(model, requested_thinking_level),
             base_url: effective_base_url,
         })
     }
@@ -118,10 +134,7 @@ struct DelegatingProvider {
 
 impl DelegatingProvider {
     fn new(api_id: &'static str) -> Self {
-        Self {
-            inner: OpenAiCompletionsProvider::new(),
-            api_id,
-        }
+        Self { inner: OpenAiCompletionsProvider::new(), api_id }
     }
 }
 
@@ -154,7 +167,22 @@ pub async fn register_builtin_providers() {
     register_api_provider(Box::new(pi_provider_bedrock::BedrockProvider::new())).await;
     #[cfg(feature = "feat-anthropic")]
     register_api_provider(Box::new(AnthropicProvider::new())).await;
+    #[cfg(feature = "feat-google")]
+    register_api_provider(Box::new(GoogleProvider::new())).await;
+    #[cfg(feature = "feat-mistral")]
+    register_api_provider(Box::new(MistralProvider::new())).await;
     tracing::info!("registered built-in API providers");
+}
+
+/// Convert CLI tool flags into an executable built-in tool selection.
+pub fn tool_selection_from_args(args: &args::Args) -> Result<ToolSelection> {
+    if let Some(tools) = &args.tools {
+        return ToolSelection::allow_only(tools).map_err(anyhow::Error::msg);
+    }
+    if args.no_tools || args.no_builtin_tools {
+        return Ok(ToolSelection::disable_builtin());
+    }
+    Ok(ToolSelection::all())
 }
 
 // ---------------------------------------------------------------------------
@@ -170,10 +198,7 @@ fn parse_provider(s: &str) -> Result<KnownProvider> {
         "mistral" => Ok(KnownProvider::Mistral),
         "bedrock" => Ok(KnownProvider::Bedrock),
         "faux" => Ok(KnownProvider::Faux),
-        _ => Err(anyhow::anyhow!(
-            "Unknown provider '{}'. Supported: openai, anthropic, google, mistral, bedrock",
-            s
-        )),
+        _ => Err(anyhow::anyhow!("Unknown provider '{}'. Supported: openai, anthropic, google, mistral, bedrock", s)),
     }
 }
 
@@ -216,6 +241,21 @@ fn resolve_api_key(cli_or_settings_key: Option<String>, provider: &KnownProvider
     None
 }
 
+fn provider_requires_api_key(provider: KnownProvider) -> bool {
+    !matches!(provider, KnownProvider::Bedrock | KnownProvider::Faux)
+}
+
+fn preflight_api_key(provider: KnownProvider, api_key: Option<String>) -> Result<Option<String>> {
+    if api_key.is_some() || !provider_requires_api_key(provider) {
+        return Ok(api_key);
+    }
+    anyhow::bail!(
+        "No API key for {}. Set {}_API_KEY or configure ~/.pi/auth.json.",
+        provider_name(&provider),
+        provider_name(&provider).to_uppercase()
+    )
+}
+
 /// Resolve a model from CLI arguments.
 ///
 /// Resolution order:
@@ -245,7 +285,10 @@ fn resolve_model(args: &args::Args, effective_base_url: Option<&str>) -> Result<
         if effective_base_url.is_some() {
             return Ok(custom_model(model_id, KnownProvider::OpenAi));
         }
-        return Err(anyhow::anyhow!("Model '{}' not found in catalog. Use --list-models to see available models.", model_id));
+        return Err(anyhow::anyhow!(
+            "Model '{}' not found in catalog. Use --list-models to see available models.",
+            model_id
+        ));
     }
 
     // --provider alone: use first model for that provider
@@ -317,7 +360,7 @@ fn find_or_build_model(config: &SessionConfig) -> Result<&'static Model> {
 /// to fulfill the user's request.
 ///
 /// The final assistant message text is printed to stdout.
-async fn print_mode(config: &SessionConfig) -> Result<()> {
+async fn print_mode_with_tools(config: &SessionConfig, tool_selection: &ToolSelection) -> Result<()> {
     register_builtin_providers().await;
 
     // If a custom base_url is configured, register an OpenAI provider that
@@ -331,16 +374,10 @@ async fn print_mode(config: &SessionConfig) -> Result<()> {
 
     tracing::info!(provider = ?config.provider, model = %config.model_id, "using model");
 
-    // Verify API key is available (either in options or environment)
-    if config.api_key.is_none() && std::env::var("OPENAI_API_KEY").is_err() {
-        anyhow::bail!(
-            "OpenAI API key not found.\n\
-             Set the OPENAI_API_KEY environment variable or pass --api-key <key>."
-        );
-    }
+    let api_key = preflight_api_key(config.provider, config.api_key.clone())?;
 
     // ── Tool definitions ──────────────────────────────────────────────────
-    let tools = pi_core::tool_registry::tool_definitions();
+    let tools = tool_registry::tool_definitions_for_selection(tool_registry::ToolPreset::Full, tool_selection);
 
     // ── Agent state ────────────────────────────────────────────────────────
     let mut state = pi_agent_core::AgentState {
@@ -357,7 +394,8 @@ async fn print_mode(config: &SessionConfig) -> Result<()> {
     };
 
     let options = pi_ai_core::types::StreamOptions {
-        api_key: config.api_key.clone(),
+        api_key,
+        thinking: Some(thinking_enabled(&config.thinking_level)),
         ..Default::default()
     };
 
@@ -367,9 +405,7 @@ async fn print_mode(config: &SessionConfig) -> Result<()> {
     // Wraps `stream::stream` into the agent loop's expected signature.
     let stream_fn = {
         let options = options.clone();
-        move |ctx: pi_ai_core::types::Context| {
-            pi_ai_core::stream::stream(model, ctx, options.clone())
-        }
+        move |ctx: pi_ai_core::types::Context| pi_ai_core::stream::stream(model, ctx, options.clone())
     };
 
     // ── Tool executor ──────────────────────────────────────────────────────
@@ -381,28 +417,34 @@ async fn print_mode(config: &SessionConfig) -> Result<()> {
         let name = name.to_string();
         let args = args.clone();
         let rt_handle = tokio::runtime::Handle::current();
+        let tool_selection = tool_selection.clone();
         tokio::task::block_in_place(move || {
             rt_handle.block_on(async move {
-                let result = pi_core::tool_registry::execute_tool(&name, args, cancel).await?;
+                let result = tool_registry::execute_tool_for_selection(
+                    &name,
+                    args,
+                    cancel,
+                    tool_registry::ToolPreset::Full,
+                    &tool_selection,
+                )
+                .await?;
                 Ok(result)
             })
         })
     };
 
     // ── Event sink ─────────────────────────────────────────────────────────
-    let event_sink = |event: pi_agent_core::AgentEvent| {
-        match &event {
-            pi_agent_core::AgentEvent::TurnStart { turn_number } => {
-                tracing::debug!("Agent turn {turn_number}");
-            }
-            pi_agent_core::AgentEvent::ToolExecutionStart { tool_name, .. } => {
-                tracing::debug!("Executing tool: {tool_name}");
-            }
-            pi_agent_core::AgentEvent::AgentEnd { finish_reason, .. } => {
-                tracing::debug!("Agent finished: {finish_reason}");
-            }
-            _ => {}
+    let event_sink = |event: pi_agent_core::AgentEvent| match &event {
+        pi_agent_core::AgentEvent::TurnStart { turn_number } => {
+            tracing::debug!("Agent turn {turn_number}");
         }
+        pi_agent_core::AgentEvent::ToolExecutionStart { tool_name, .. } => {
+            tracing::debug!("Executing tool: {tool_name}");
+        }
+        pi_agent_core::AgentEvent::AgentEnd { finish_reason, .. } => {
+            tracing::debug!("Agent finished: {finish_reason}");
+        }
+        _ => {}
     };
 
     // ── Run agent loop ─────────────────────────────────────────────────────
@@ -433,7 +475,8 @@ pub async fn create_print_mode(args: &args::Args) -> Result<()> {
     }
 
     let config = SessionConfig::from_args(args)?;
-    print_mode(&config).await
+    let tool_selection = tool_selection_from_args(args)?;
+    print_mode_with_tools(&config, &tool_selection).await
 }
 
 // ---------------------------------------------------------------------------
@@ -474,6 +517,7 @@ pub fn format_model_list() -> String {
 mod tests {
     use super::*;
     use clap::Parser;
+    use pi_ai_core::api_registry::{clear_api_providers, list_api_providers};
 
     // ── Arg parsing tests ────────────────────────────────────────────────
 
@@ -505,8 +549,7 @@ mod tests {
 
     #[test]
     fn test_args_parse_provider_and_model() {
-        let args =
-            args::Args::try_parse_from(["pi", "--provider", "openai", "--model", "gpt-4o"]);
+        let args = args::Args::try_parse_from(["pi", "--provider", "openai", "--model", "gpt-4o"]);
         assert!(args.is_ok());
         let args = args.unwrap();
         assert_eq!(args.provider.as_deref(), Some("openai"));
@@ -515,13 +558,7 @@ mod tests {
 
     #[test]
     fn test_args_parse_system_prompt() {
-        let args = args::Args::try_parse_from([
-            "pi",
-            "--system-prompt",
-            "You are a helpful bot",
-            "--print",
-            "hi",
-        ]);
+        let args = args::Args::try_parse_from(["pi", "--system-prompt", "You are a helpful bot", "--print", "hi"]);
         assert!(args.is_ok());
         let args = args.unwrap();
         assert_eq!(args.system_prompt.as_deref(), Some("You are a helpful bot"));
@@ -541,6 +578,65 @@ mod tests {
         assert!(args.is_ok());
         let args = args.unwrap();
         assert!(args.interactive);
+    }
+
+    #[test]
+    fn test_args_parse_continue_resume_and_no_session() {
+        let args = args::Args::try_parse_from(["pi", "--continue", "--resume", "--no-session"]);
+        assert!(args.is_ok());
+        let args = args.unwrap();
+        assert!(args.continue_recent);
+        assert!(args.resume);
+        assert!(args.no_session);
+    }
+
+    #[test]
+    fn test_args_parse_session_dir_and_export() {
+        let args = args::Args::try_parse_from(["pi", "--session-dir", "/tmp/pi-sessions", "--export", "session-1234"]);
+        assert!(args.is_ok());
+        let args = args.unwrap();
+        assert_eq!(args.session_dir.as_deref(), Some("/tmp/pi-sessions"));
+        assert_eq!(args.export.as_deref(), Some("session-1234"));
+    }
+
+    #[test]
+    fn test_args_parse_fork_value() {
+        let args = args::Args::try_parse_from(["pi", "--fork", "abcd1234"]);
+        assert!(args.is_ok());
+        let args = args.unwrap();
+        assert_eq!(args.fork.as_deref(), Some("abcd1234"));
+    }
+
+    #[test]
+    fn test_args_reject_conflicting_fork_flags() {
+        let args = args::Args::try_parse_from(["pi", "--fork", "abcd1234", "--resume"]);
+        assert!(args.is_err());
+    }
+
+    #[test]
+    fn test_args_parse_tools_and_verbose() {
+        let args = args::Args::try_parse_from(["pi", "--tools", "read,bash", "--verbose", "--print", "hi"]);
+        assert!(args.is_ok());
+        let args = args.unwrap();
+        assert_eq!(args.tools, Some(vec!["read".to_string(), "bash".to_string()]));
+        assert!(args.verbose);
+    }
+
+    #[test]
+    fn test_tool_selection_from_args_no_tools_disables_builtins() {
+        let args = args::Args::parse_from(["pi", "--no-tools", "--print", "hello"]);
+        let selection = tool_selection_from_args(&args).unwrap();
+        let defs = tool_registry::tool_definitions_for_selection(tool_registry::ToolPreset::Full, &selection);
+        assert!(defs.is_empty(), "no-tools should hide all built-in tools");
+    }
+
+    #[test]
+    fn test_tool_selection_from_args_allowlist_filters_builtins() {
+        let args = args::Args::parse_from(["pi", "--tools", "read,bash", "--print", "hello"]);
+        let selection = tool_selection_from_args(&args).unwrap();
+        let defs = tool_registry::tool_definitions_for_selection(tool_registry::ToolPreset::Full, &selection);
+        let names: Vec<_> = defs.iter().map(|d| d.name.as_str()).collect();
+        assert_eq!(names, vec!["Bash", "Read"]);
     }
 
     // ── SessionConfig / model resolution tests ───────────────────────────
@@ -572,8 +668,7 @@ mod tests {
     #[test]
     fn test_session_config_unknown_model() {
         // Use resolve_model directly to avoid depending on settings.json state.
-        let args =
-            args::Args::parse_from(["pi", "--model", "nonexistent-model-xyz", "hello"]);
+        let args = args::Args::parse_from(["pi", "--model", "nonexistent-model-xyz", "hello"]);
         let result = resolve_model(&args, None);
         assert!(result.is_err(), "unknown model without base_url should error");
         let err = result.unwrap_err().to_string();
@@ -590,34 +685,48 @@ mod tests {
 
     #[test]
     fn test_session_config_system_prompt() {
-        let args = args::Args::parse_from([
-            "pi",
-            "--system-prompt",
-            "You are helpful",
-            "--print",
-            "hello",
-        ]);
+        let args = args::Args::parse_from(["pi", "--system-prompt", "You are helpful", "--print", "hello"]);
         let config = SessionConfig::from_args(&args).expect("should resolve");
         assert_eq!(config.system_prompt.as_deref(), Some("You are helpful"));
+    }
+
+    #[test]
+    fn test_session_config_thinking_level_passthrough() {
+        let args = args::Args::parse_from(["pi", "--model", "o3-mini", "--thinking-level", "high", "--print", "hello"]);
+        let config = SessionConfig::from_args(&args).expect("o3-mini should support thinking");
+        assert_eq!(config.thinking_level, "high");
+    }
+
+    #[test]
+    fn test_session_config_thinking_flag_defaults_to_low() {
+        let args = args::Args::parse_from(["pi", "--model", "o3-mini", "--thinking", "--print", "hello"]);
+        let config = SessionConfig::from_args(&args).expect("o3-mini should support thinking");
+        assert_eq!(config.thinking_level, "low");
+    }
+
+    #[test]
+    fn test_session_config_thinking_level_clamps_for_unsupported_models() {
+        let args = args::Args::parse_from(["pi", "--model", "gpt-4o", "--thinking-level", "high", "--print", "hello"]);
+        let config = SessionConfig::from_args(&args).expect("gpt-4o should resolve");
+        assert_eq!(config.thinking_level, "off");
+    }
+
+    #[test]
+    fn test_session_config_invalid_thinking_level_errors() {
+        let args =
+            args::Args::parse_from(["pi", "--model", "o3-mini", "--thinking-level", "turbo", "--print", "hello"]);
+        let err = SessionConfig::from_args(&args).unwrap_err().to_string();
+        assert!(err.contains("Invalid thinking level"), "{err}");
     }
 
     // ── Base URL & custom model tests ──────────────────────────────────
 
     #[test]
     fn test_args_parse_base_url() {
-        let args = args::Args::try_parse_from([
-            "pi",
-            "--base-url",
-            "https://custom.api.com/v1",
-            "--print",
-            "hello",
-        ]);
+        let args = args::Args::try_parse_from(["pi", "--base-url", "https://custom.api.com/v1", "--print", "hello"]);
         assert!(args.is_ok());
         let args = args.unwrap();
-        assert_eq!(
-            args.base_url.as_deref(),
-            Some("https://custom.api.com/v1")
-        );
+        assert_eq!(args.base_url.as_deref(), Some("https://custom.api.com/v1"));
     }
 
     #[test]
@@ -630,14 +739,10 @@ mod tests {
             "https://custom.api.com/v1",
             "hello",
         ]);
-        let config = SessionConfig::from_args(&args)
-            .expect("custom model with base_url should resolve");
+        let config = SessionConfig::from_args(&args).expect("custom model with base_url should resolve");
         assert_eq!(config.model_id, "my-custom-model");
         assert_eq!(config.provider, KnownProvider::OpenAi);
-        assert_eq!(
-            config.base_url.as_deref(),
-            Some("https://custom.api.com/v1")
-        );
+        assert_eq!(config.base_url.as_deref(), Some("https://custom.api.com/v1"));
     }
 
     #[test]
@@ -649,7 +754,7 @@ mod tests {
             api_key: None,
             system_prompt: None,
             prompt: "test".into(),
-            thinking: false,
+            thinking_level: "off".into(),
             base_url: None,
         };
         let model = find_or_build_model(&config).expect("gpt-4o should resolve");
@@ -665,11 +770,10 @@ mod tests {
             api_key: None,
             system_prompt: None,
             prompt: "test".into(),
-            thinking: false,
+            thinking_level: "off".into(),
             base_url: Some("https://custom.api.com/v1".into()),
         };
-        let model =
-            find_or_build_model(&config).expect("custom model with base_url should be built");
+        let model = find_or_build_model(&config).expect("custom model with base_url should be built");
         assert_eq!(model.id, "my-custom-llm");
         assert_eq!(model.provider, KnownProvider::OpenAi);
         assert_eq!(model.api, "openai-completions");
@@ -695,14 +799,37 @@ mod tests {
         assert_eq!(model.provider, KnownProvider::OpenAi);
     }
 
+    #[test]
+    fn test_preflight_api_key_allows_bedrock_without_key() {
+        let result = preflight_api_key(KnownProvider::Bedrock, None).unwrap();
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_preflight_api_key_rejects_missing_openai_key() {
+        let err = preflight_api_key(KnownProvider::OpenAi, None).unwrap_err().to_string();
+        assert!(err.contains("No API key for openai"));
+    }
+
+    #[tokio::test]
+    async fn test_register_builtin_providers_includes_google_and_mistral() {
+        clear_api_providers().await;
+        register_builtin_providers().await;
+        let providers = list_api_providers().await;
+        assert!(providers.contains(&"openai-completions".to_string()));
+        assert!(providers.contains(&"openai-responses".to_string()));
+        #[cfg(feature = "feat-google")]
+        assert!(providers.contains(&"google-generative-ai".to_string()));
+        #[cfg(feature = "feat-mistral")]
+        assert!(providers.contains(&"mistral-conversations".to_string()));
+    }
+
     // ── Error handling tests ─────────────────────────────────────────────
 
     #[test]
     fn test_create_print_mode_empty_prompt_errors() {
         let args = args::Args::parse_from(["pi", "--print"]);
-        let result = tokio::runtime::Runtime::new()
-            .unwrap()
-            .block_on(create_print_mode(&args));
+        let result = tokio::runtime::Runtime::new().unwrap().block_on(create_print_mode(&args));
         assert!(result.is_err(), "empty prompt should produce an error");
         let err = result.unwrap_err().to_string();
         assert!(err.contains("No prompt"), "error: {err}");

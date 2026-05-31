@@ -158,11 +158,7 @@ impl fmt::Display for KeyEvent {
         };
 
         let mods = self.modifiers.to_string();
-        if mods.is_empty() {
-            write!(f, "{key_name}")
-        } else {
-            write!(f, "{mods}+{key_name}")
-        }
+        if mods.is_empty() { write!(f, "{key_name}") } else { write!(f, "{mods}+{key_name}") }
     }
 }
 
@@ -249,45 +245,26 @@ fn is_known_key(codepoint: u32) -> bool {
 
 fn parse_single_byte(b: u8) -> KeyEvent {
     match b {
-        0x00 => KeyEvent {
-            code: KeyCode::Char(' '),
-            modifiers: KeyModifiers { ctrl: true, alt: false, shift: false },
-        },
+        0x00 => KeyEvent { code: KeyCode::Char(' '), modifiers: KeyModifiers { ctrl: true, alt: false, shift: false } },
         0x01..=0x06 | 0x0a..=0x0c | 0x0e..=0x1a => {
             // Ctrl+A through Ctrl+Z (except 0x09=Tab, 0x0d=CR, 0x1b=ESC)
             let letter = (b + 96) as char;
-            KeyEvent {
-                code: KeyCode::Char(letter),
-                modifiers: KeyModifiers { ctrl: true, alt: false, shift: false },
-            }
+            KeyEvent { code: KeyCode::Char(letter), modifiers: KeyModifiers { ctrl: true, alt: false, shift: false } }
         }
         0x07 => {
             // Ctrl+G (BEL) — also used as OSC terminator, but treat as Ctrl+G here
-            KeyEvent {
-                code: KeyCode::Char('g'),
-                modifiers: KeyModifiers { ctrl: true, alt: false, shift: false },
-            }
+            KeyEvent { code: KeyCode::Char('g'), modifiers: KeyModifiers { ctrl: true, alt: false, shift: false } }
         }
         0x08 => KeyEvent::new(KeyCode::Backspace), // BS — treat as backspace
         0x09 => KeyEvent::new(KeyCode::Tab),
         0x0d => KeyEvent::new(KeyCode::Enter), // CR — treat as enter
         0x1b => KeyEvent::new(KeyCode::Escape),
-        0x1c => KeyEvent {
-            code: KeyCode::Char('\\'),
-            modifiers: KeyModifiers { ctrl: true, alt: false, shift: false },
-        },
-        0x1d => KeyEvent {
-            code: KeyCode::Char(']'),
-            modifiers: KeyModifiers { ctrl: true, alt: false, shift: false },
-        },
-        0x1e => KeyEvent {
-            code: KeyCode::Char('^'),
-            modifiers: KeyModifiers { ctrl: true, alt: false, shift: false },
-        },
-        0x1f => KeyEvent {
-            code: KeyCode::Char('_'),
-            modifiers: KeyModifiers { ctrl: true, alt: false, shift: false },
-        },
+        0x1c => {
+            KeyEvent { code: KeyCode::Char('\\'), modifiers: KeyModifiers { ctrl: true, alt: false, shift: false } }
+        }
+        0x1d => KeyEvent { code: KeyCode::Char(']'), modifiers: KeyModifiers { ctrl: true, alt: false, shift: false } },
+        0x1e => KeyEvent { code: KeyCode::Char('^'), modifiers: KeyModifiers { ctrl: true, alt: false, shift: false } },
+        0x1f => KeyEvent { code: KeyCode::Char('_'), modifiers: KeyModifiers { ctrl: true, alt: false, shift: false } },
         0x20..=0x7e => KeyEvent::new(KeyCode::Char(b as char)),
         0x7f => KeyEvent::new(KeyCode::Backspace), // DEL
         _ => KeyEvent::new(KeyCode::Char(b as char)),
@@ -316,11 +293,7 @@ fn parse_modifier_and_event(mod_str: &str) -> Option<(u32, KeyEventType)> {
 /// Decode a 1-indexed CSI modifier value into our bitmask.
 fn decode_csi_mod(raw_mod: u32) -> KeyModifiers {
     let m = raw_mod.saturating_sub(1);
-    KeyModifiers {
-        shift: (m & 1) != 0,
-        alt: (m & 2) != 0,
-        ctrl: (m & 4) != 0,
-    }
+    KeyModifiers { shift: (m & 1) != 0, alt: (m & 2) != 0, ctrl: (m & 4) != 0 }
 }
 
 // ---------------------------------------------------------------------------
@@ -351,9 +324,7 @@ fn parse_csi_u_payload(payload: &str) -> Option<KeyEvent> {
     let codepoint: u32 = code_parts[0].parse().ok()?;
 
     // Shifted key (may be empty string meaning explicitly omitted, e.g. `code::base`)
-    let _shifted_key: Option<u32> = code_parts.get(1).and_then(|s| {
-        if s.is_empty() { None } else { s.parse().ok() }
-    });
+    let _shifted_key: Option<u32> = code_parts.get(1).and_then(|s| if s.is_empty() { None } else { s.parse().ok() });
 
     // Base layout key — the key position on a standard PC-101 layout
     let base_layout_key: Option<u32> = code_parts.get(2).and_then(|s| s.parse().ok());
@@ -383,10 +354,7 @@ fn parse_csi_u_payload(payload: &str) -> Option<KeyEvent> {
     // 2. Control characters (1-26) with ctrl → Ctrl+letter
     if (1..=26).contains(&codepoint) && ctrl {
         let letter = char::from_u32(codepoint + 96).unwrap_or('?');
-        return Some(KeyEvent {
-            code: KeyCode::Char(letter),
-            modifiers: mods,
-        });
+        return Some(KeyEvent { code: KeyCode::Char(letter), modifiers: mods });
     }
 
     // 3. Special key codepoints → KeyCode variants
@@ -400,11 +368,7 @@ fn parse_csi_u_payload(payload: &str) -> Option<KeyEvent> {
     //    base layout key code instead. This allows Ctrl+<Cyrillic letter> to
     //    match Ctrl+c when both keys are at the same physical position.
     let effective_cp = if let Some(base) = base_layout_key {
-        if !is_known_key(codepoint) {
-            base
-        } else {
-            codepoint
-        }
+        if !is_known_key(codepoint) { base } else { codepoint }
     } else {
         codepoint
     };
@@ -412,17 +376,10 @@ fn parse_csi_u_payload(payload: &str) -> Option<KeyEvent> {
     // 5. Normalize shifted uppercase letters to lowercase when shift is held.
     //    Terminal sends `\x1b[65;2u` (Shift+A, codepoint 65='A') but we want
     //    Char('a') + shift so that matches_key("shift+a") works correctly.
-    let final_cp = if shift && (65..=90).contains(&effective_cp) {
-        effective_cp + 32
-    } else {
-        effective_cp
-    };
+    let final_cp = if shift && (65..=90).contains(&effective_cp) { effective_cp + 32 } else { effective_cp };
 
     let ch = char::from_u32(final_cp).unwrap_or('?');
-    Some(KeyEvent {
-        code: KeyCode::Char(ch),
-        modifiers: mods,
-    })
+    Some(KeyEvent { code: KeyCode::Char(ch), modifiers: mods })
 }
 
 /// Map common control character codepoints to their `KeyCode` variants.
@@ -459,10 +416,7 @@ fn parse_modify_other_keys(payload: &str) -> Option<KeyEvent> {
     // Control characters (1-26) with ctrl → Ctrl+letter
     if (1..=26).contains(&code) && mods.ctrl {
         let letter = char::from_u32(code + 96).unwrap_or('?');
-        return Some(KeyEvent {
-            code: KeyCode::Char(letter),
-            modifiers: mods,
-        });
+        return Some(KeyEvent { code: KeyCode::Char(letter), modifiers: mods });
     }
 
     // Special key codepoints
@@ -471,10 +425,7 @@ fn parse_modify_other_keys(payload: &str) -> Option<KeyEvent> {
     }
 
     let ch = char::from_u32(code)?;
-    Some(KeyEvent {
-        code: KeyCode::Char(ch),
-        modifiers: mods,
-    })
+    Some(KeyEvent { code: KeyCode::Char(ch), modifiers: mods })
 }
 
 // ---------------------------------------------------------------------------
@@ -511,11 +462,8 @@ fn parse_csi_modified(payload: &str) -> Option<KeyEvent> {
     // --- Function / tilde codes: `<num>;<mod>[:<event>]~` ---
     if last == b'~' {
         let inner = &payload[..payload.len() - 1];
-        let (num_str, mod_str) = if let Some(semi) = inner.rfind(';') {
-            (&inner[..semi], Some(&inner[semi + 1..]))
-        } else {
-            (inner, None)
-        };
+        let (num_str, mod_str) =
+            if let Some(semi) = inner.rfind(';') { (&inner[..semi], Some(&inner[semi + 1..])) } else { (inner, None) };
         let num: u32 = num_str.parse().ok()?;
         let (raw_mod, event_type) = match mod_str {
             Some(s) => parse_modifier_and_event(s)?,
@@ -573,21 +521,14 @@ fn parse_meta(bytes: &[u8]) -> KeyEvent {
     debug_assert!(bytes.len() == 2 && bytes[0] == b'\x1b');
     let b = bytes[1];
     match b {
-        b'\r' => KeyEvent {
-            code: KeyCode::Enter,
-            modifiers: KeyModifiers { ctrl: false, alt: true, shift: false },
-        },
-        0x7f | 0x08 => KeyEvent {
-            code: KeyCode::Backspace,
-            modifiers: KeyModifiers { ctrl: false, alt: true, shift: false },
-        },
+        b'\r' => KeyEvent { code: KeyCode::Enter, modifiers: KeyModifiers { ctrl: false, alt: true, shift: false } },
+        0x7f | 0x08 => {
+            KeyEvent { code: KeyCode::Backspace, modifiers: KeyModifiers { ctrl: false, alt: true, shift: false } }
+        }
         0x1b => KeyEvent::new(KeyCode::Escape),
         0x01..=0x1a => {
             let letter = (b + 96) as char;
-            KeyEvent {
-                code: KeyCode::Char(letter),
-                modifiers: KeyModifiers { ctrl: true, alt: true, shift: false },
-            }
+            KeyEvent { code: KeyCode::Char(letter), modifiers: KeyModifiers { ctrl: true, alt: true, shift: false } }
         }
         0x20..=0x7e => KeyEvent {
             code: KeyCode::Char(b as char),
@@ -632,7 +573,6 @@ pub fn parse_key(input: &str) -> KeyEvent {
 
     // CSI sequences: ESC [ ...
     if let Some(inner) = input.strip_prefix("\x1b[") {
-
         // Known fixed CSI sequences
         match inner {
             "A" => return KeyEvent::new(KeyCode::Up),
@@ -645,7 +585,7 @@ pub fn parse_key(input: &str) -> KeyEvent {
                 return KeyEvent {
                     code: KeyCode::Tab,
                     modifiers: KeyModifiers { ctrl: false, alt: false, shift: true },
-                }
+                };
             }
             "2~" => return KeyEvent::new(KeyCode::Insert),
             "3~" => return KeyEvent::new(KeyCode::Delete),
@@ -653,18 +593,8 @@ pub fn parse_key(input: &str) -> KeyEvent {
             "6~" => return KeyEvent::new(KeyCode::PageDown),
             "1~" | "7~" => return KeyEvent::new(KeyCode::Home),
             "4~" | "8~" => return KeyEvent::new(KeyCode::End),
-            "200~" => {
-                return KeyEvent {
-                    code: KeyCode::Char('\u{e000}'),
-                    modifiers: KeyModifiers::none(),
-                }
-            } // paste-start marker
-            "201~" => {
-                return KeyEvent {
-                    code: KeyCode::Char('\u{e001}'),
-                    modifiers: KeyModifiers::none(),
-                }
-            } // paste-end marker
+            "200~" => return KeyEvent { code: KeyCode::Char('\u{e000}'), modifiers: KeyModifiers::none() }, // paste-start marker
+            "201~" => return KeyEvent { code: KeyCode::Char('\u{e001}'), modifiers: KeyModifiers::none() }, // paste-end marker
             "11~" => return KeyEvent::new(KeyCode::F(1)),
             "12~" => return KeyEvent::new(KeyCode::F(2)),
             "13~" => return KeyEvent::new(KeyCode::F(3)),
@@ -711,10 +641,7 @@ pub fn parse_key(input: &str) -> KeyEvent {
         }
 
         // Fallback: treat as Unknown
-        return KeyEvent {
-            code: KeyCode::Char(input.chars().nth(2).unwrap_or('?')),
-            modifiers: KeyModifiers::none(),
-        };
+        return KeyEvent { code: KeyCode::Char(input.chars().nth(2).unwrap_or('?')), modifiers: KeyModifiers::none() };
     }
 
     // SS3 sequences: ESC O ...
@@ -773,10 +700,7 @@ pub fn matches_key(event: &KeyEvent, key_id: &str) -> bool {
     }
 
     // Verify modifiers match exactly
-    if event.modifiers.ctrl != want_ctrl
-        || event.modifiers.alt != want_alt
-        || event.modifiers.shift != want_shift
-    {
+    if event.modifiers.ctrl != want_ctrl || event.modifiers.alt != want_alt || event.modifiers.shift != want_shift {
         return false;
     }
 
@@ -942,10 +866,8 @@ mod tests {
 
     #[test]
     fn test_parse_shift_tab() {
-        let expected = KeyEvent {
-            code: KeyCode::Tab,
-            modifiers: KeyModifiers { ctrl: false, alt: false, shift: true },
-        };
+        let expected =
+            KeyEvent { code: KeyCode::Tab, modifiers: KeyModifiers { ctrl: false, alt: false, shift: true } };
         assert_eq!(parse_key("\x1b[Z"), expected);
     }
 
@@ -969,20 +891,16 @@ mod tests {
     #[test]
     fn test_parse_csi_u_with_modifier() {
         // \x1b[99;5u = Ctrl+c (modifier 5 = ctrl)
-        let expected = KeyEvent {
-            code: KeyCode::Char('c'),
-            modifiers: KeyModifiers { ctrl: true, alt: false, shift: false },
-        };
+        let expected =
+            KeyEvent { code: KeyCode::Char('c'), modifiers: KeyModifiers { ctrl: true, alt: false, shift: false } };
         assert_eq!(parse_key("\x1b[99;5u"), expected);
     }
 
     #[test]
     fn test_parse_csi_u_alt() {
         // \x1b[97;3u = Alt+a (modifier 3 = alt)
-        let expected = KeyEvent {
-            code: KeyCode::Char('a'),
-            modifiers: KeyModifiers { ctrl: false, alt: true, shift: false },
-        };
+        let expected =
+            KeyEvent { code: KeyCode::Char('a'), modifiers: KeyModifiers { ctrl: false, alt: true, shift: false } };
         assert_eq!(parse_key("\x1b[97;3u"), expected);
     }
 
@@ -990,10 +908,8 @@ mod tests {
     fn test_parse_csi_u_shift() {
         // \x1b[65;2u = Shift+A (modifier 2 = shift)
         // After shifted letter normalization, A (65) becomes 'a' (97)
-        let expected = KeyEvent {
-            code: KeyCode::Char('a'),
-            modifiers: KeyModifiers { ctrl: false, alt: false, shift: true },
-        };
+        let expected =
+            KeyEvent { code: KeyCode::Char('a'), modifiers: KeyModifiers { ctrl: false, alt: false, shift: true } };
         assert_eq!(parse_key("\x1b[65;2u"), expected);
     }
 
@@ -1069,10 +985,8 @@ mod tests {
     fn test_parse_csi_u_base_layout_key_fallback() {
         // Cyrillic 'С' (codepoint 1083) with base layout 'c' (99), ctrl modifier (5)
         // 1083 is not a Latin letter/digit/symbol → falls back to base layout key 99
-        let expected = KeyEvent {
-            code: KeyCode::Char('c'),
-            modifiers: KeyModifiers { ctrl: true, alt: false, shift: false },
-        };
+        let expected =
+            KeyEvent { code: KeyCode::Char('c'), modifiers: KeyModifiers { ctrl: true, alt: false, shift: false } };
         assert_eq!(parse_key("\x1b[1083::99;5u"), expected);
     }
 
@@ -1080,10 +994,8 @@ mod tests {
     fn test_parse_csi_u_base_layout_key_known_no_fallback() {
         // 'd' (100) with base layout 'x' (120), shift modifier (2)
         // 100 is a known Latin letter → NO fallback to base layout
-        let expected = KeyEvent {
-            code: KeyCode::Char('d'),
-            modifiers: KeyModifiers { ctrl: false, alt: false, shift: true },
-        };
+        let expected =
+            KeyEvent { code: KeyCode::Char('d'), modifiers: KeyModifiers { ctrl: false, alt: false, shift: true } };
         assert_eq!(parse_key("\x1b[100::120;2u"), expected);
     }
 
@@ -1092,10 +1004,8 @@ mod tests {
         // 'a' (97) with shifted 'A' (65), shift modifier (2)
         // codepoint 97 is known, no base layout fallback
         // shift + 'a' → Char('a') with shift (no normalization needed for lowercase)
-        let expected = KeyEvent {
-            code: KeyCode::Char('a'),
-            modifiers: KeyModifiers { ctrl: false, alt: false, shift: true },
-        };
+        let expected =
+            KeyEvent { code: KeyCode::Char('a'), modifiers: KeyModifiers { ctrl: false, alt: false, shift: true } };
         assert_eq!(parse_key("\x1b[97:65;2u"), expected);
     }
 
@@ -1153,17 +1063,13 @@ mod tests {
     #[test]
     fn test_parse_f13_to_f24_modified() {
         // F13 with shift modifier (2)
-        let expected = KeyEvent {
-            code: KeyCode::F(13),
-            modifiers: KeyModifiers { ctrl: false, alt: false, shift: true },
-        };
+        let expected =
+            KeyEvent { code: KeyCode::F(13), modifiers: KeyModifiers { ctrl: false, alt: false, shift: true } };
         assert_eq!(parse_key("\x1b[25;2~"), expected);
 
         // F20 with ctrl modifier (5)
-        let expected = KeyEvent {
-            code: KeyCode::F(20),
-            modifiers: KeyModifiers { ctrl: true, alt: false, shift: false },
-        };
+        let expected =
+            KeyEvent { code: KeyCode::F(20), modifiers: KeyModifiers { ctrl: true, alt: false, shift: false } };
         assert_eq!(parse_key("\x1b[32;5~"), expected);
     }
 
@@ -1174,20 +1080,15 @@ mod tests {
     #[test]
     fn test_parse_csi_modified_arrow() {
         // \x1b[1;5A = Ctrl+Up (modifier 5 = ctrl)
-        let expected = KeyEvent {
-            code: KeyCode::Up,
-            modifiers: KeyModifiers { ctrl: true, alt: false, shift: false },
-        };
+        let expected = KeyEvent { code: KeyCode::Up, modifiers: KeyModifiers { ctrl: true, alt: false, shift: false } };
         assert_eq!(parse_key("\x1b[1;5A"), expected);
     }
 
     #[test]
     fn test_parse_csi_modified_home() {
         // \x1b[1;3H = Alt+Home
-        let expected = KeyEvent {
-            code: KeyCode::Home,
-            modifiers: KeyModifiers { ctrl: false, alt: true, shift: false },
-        };
+        let expected =
+            KeyEvent { code: KeyCode::Home, modifiers: KeyModifiers { ctrl: false, alt: true, shift: false } };
         assert_eq!(parse_key("\x1b[1;3H"), expected);
     }
 
@@ -1198,20 +1099,16 @@ mod tests {
     #[test]
     fn test_parse_modify_other_keys_ctrl_c() {
         // \x1b[27;5;99~ = Ctrl+c (modifier 5 = ctrl)
-        let expected = KeyEvent {
-            code: KeyCode::Char('c'),
-            modifiers: KeyModifiers { ctrl: true, alt: false, shift: false },
-        };
+        let expected =
+            KeyEvent { code: KeyCode::Char('c'), modifiers: KeyModifiers { ctrl: true, alt: false, shift: false } };
         assert_eq!(parse_key("\x1b[27;5;99~"), expected);
     }
 
     #[test]
     fn test_parse_modify_other_keys_shift_a() {
         // \x1b[27;2;65~ = Shift+A (modifier 2 = shift, code 65 = 'A')
-        let expected = KeyEvent {
-            code: KeyCode::Char('A'),
-            modifiers: KeyModifiers { ctrl: false, alt: false, shift: true },
-        };
+        let expected =
+            KeyEvent { code: KeyCode::Char('A'), modifiers: KeyModifiers { ctrl: false, alt: false, shift: true } };
         assert_eq!(parse_key("\x1b[27;2;65~"), expected);
     }
 
@@ -1251,28 +1148,22 @@ mod tests {
 
     #[test]
     fn test_parse_alt_letter() {
-        let expected = KeyEvent {
-            code: KeyCode::Char('a'),
-            modifiers: KeyModifiers { ctrl: false, alt: true, shift: false },
-        };
+        let expected =
+            KeyEvent { code: KeyCode::Char('a'), modifiers: KeyModifiers { ctrl: false, alt: true, shift: false } };
         assert_eq!(parse_key("\x1ba"), expected);
     }
 
     #[test]
     fn test_parse_alt_enter() {
-        let expected = KeyEvent {
-            code: KeyCode::Enter,
-            modifiers: KeyModifiers { ctrl: false, alt: true, shift: false },
-        };
+        let expected =
+            KeyEvent { code: KeyCode::Enter, modifiers: KeyModifiers { ctrl: false, alt: true, shift: false } };
         assert_eq!(parse_key("\x1b\r"), expected);
     }
 
     #[test]
     fn test_parse_alt_backspace() {
-        let expected = KeyEvent {
-            code: KeyCode::Backspace,
-            modifiers: KeyModifiers { ctrl: false, alt: true, shift: false },
-        };
+        let expected =
+            KeyEvent { code: KeyCode::Backspace, modifiers: KeyModifiers { ctrl: false, alt: true, shift: false } };
         assert_eq!(parse_key("\x1b\x7f"), expected);
     }
 
@@ -1290,10 +1181,8 @@ mod tests {
 
     #[test]
     fn test_matches_ctrl_char() {
-        let event = KeyEvent {
-            code: KeyCode::Char('c'),
-            modifiers: KeyModifiers { ctrl: true, alt: false, shift: false },
-        };
+        let event =
+            KeyEvent { code: KeyCode::Char('c'), modifiers: KeyModifiers { ctrl: true, alt: false, shift: false } };
         assert!(matches_key(&event, "ctrl+c"));
         assert!(!matches_key(&event, "c"));
         assert!(!matches_key(&event, "alt+c"));
@@ -1328,49 +1217,36 @@ mod tests {
 
     #[test]
     fn test_matches_shift_tab() {
-        let event = KeyEvent {
-            code: KeyCode::Tab,
-            modifiers: KeyModifiers { ctrl: false, alt: false, shift: true },
-        };
+        let event = KeyEvent { code: KeyCode::Tab, modifiers: KeyModifiers { ctrl: false, alt: false, shift: true } };
         assert!(matches_key(&event, "shift+tab"));
         assert!(!matches_key(&event, "tab"));
     }
 
     #[test]
     fn test_matches_alt_arrow() {
-        let event = KeyEvent {
-            code: KeyCode::Left,
-            modifiers: KeyModifiers { ctrl: false, alt: true, shift: false },
-        };
+        let event = KeyEvent { code: KeyCode::Left, modifiers: KeyModifiers { ctrl: false, alt: true, shift: false } };
         assert!(matches_key(&event, "alt+left"));
         assert!(!matches_key(&event, "left"));
     }
 
     #[test]
     fn test_matches_ctrl_arrow() {
-        let event = KeyEvent {
-            code: KeyCode::Right,
-            modifiers: KeyModifiers { ctrl: true, alt: false, shift: false },
-        };
+        let event = KeyEvent { code: KeyCode::Right, modifiers: KeyModifiers { ctrl: true, alt: false, shift: false } };
         assert!(matches_key(&event, "ctrl+right"));
     }
 
     #[test]
     fn test_matches_ctrl_hyphen() {
         // Ctrl+- should match KeyCode::Char('_') with ctrl
-        let event = KeyEvent {
-            code: KeyCode::Char('_'),
-            modifiers: KeyModifiers { ctrl: true, alt: false, shift: false },
-        };
+        let event =
+            KeyEvent { code: KeyCode::Char('_'), modifiers: KeyModifiers { ctrl: true, alt: false, shift: false } };
         assert!(matches_key(&event, "ctrl+-"));
     }
 
     #[test]
     fn test_matches_alt_letter() {
-        let event = KeyEvent {
-            code: KeyCode::Char('b'),
-            modifiers: KeyModifiers { ctrl: false, alt: true, shift: false },
-        };
+        let event =
+            KeyEvent { code: KeyCode::Char('b'), modifiers: KeyModifiers { ctrl: false, alt: true, shift: false } };
         assert!(matches_key(&event, "alt+b"));
         assert!(!matches_key(&event, "b"));
         assert!(!matches_key(&event, "ctrl+b"));
@@ -1378,19 +1254,14 @@ mod tests {
 
     #[test]
     fn test_matches_shift_enter() {
-        let event = KeyEvent {
-            code: KeyCode::Enter,
-            modifiers: KeyModifiers { ctrl: false, alt: false, shift: true },
-        };
+        let event = KeyEvent { code: KeyCode::Enter, modifiers: KeyModifiers { ctrl: false, alt: false, shift: true } };
         assert!(matches_key(&event, "shift+enter"));
     }
 
     #[test]
     fn test_matches_compound_modifiers() {
-        let event = KeyEvent {
-            code: KeyCode::Char(']'),
-            modifiers: KeyModifiers { ctrl: true, alt: true, shift: false },
-        };
+        let event =
+            KeyEvent { code: KeyCode::Char(']'), modifiers: KeyModifiers { ctrl: true, alt: true, shift: false } };
         assert!(matches_key(&event, "ctrl+alt+]"));
         assert!(!matches_key(&event, "ctrl+]"));
         assert!(!matches_key(&event, "alt+]"));
@@ -1401,10 +1272,8 @@ mod tests {
         assert!(matches_key(&KeyEvent::new(KeyCode::Char(' ')), "space"));
         assert!(!matches_key(&KeyEvent::new(KeyCode::Char(' ')), "ctrl+space"));
 
-        let ctrl_space = KeyEvent {
-            code: KeyCode::Char(' '),
-            modifiers: KeyModifiers { ctrl: true, alt: false, shift: false },
-        };
+        let ctrl_space =
+            KeyEvent { code: KeyCode::Char(' '), modifiers: KeyModifiers { ctrl: true, alt: false, shift: false } };
         assert!(matches_key(&ctrl_space, "ctrl+space"));
     }
 
@@ -1459,10 +1328,8 @@ mod tests {
 
     #[test]
     fn test_matches_kp_with_modifiers() {
-        let event = KeyEvent {
-            code: KeyCode::KpEnter,
-            modifiers: KeyModifiers { ctrl: true, alt: false, shift: false },
-        };
+        let event =
+            KeyEvent { code: KeyCode::KpEnter, modifiers: KeyModifiers { ctrl: true, alt: false, shift: false } };
         assert!(matches_key(&event, "ctrl+kp_enter"));
         assert!(!matches_key(&event, "kp_enter"));
     }
@@ -1476,10 +1343,8 @@ mod tests {
         // Verify that parsing a CSI-u sequence with event type still returns
         // the correct KeyEvent
         let key = parse_key("\x1b[99;5:2u");
-        let expected = KeyEvent {
-            code: KeyCode::Char('c'),
-            modifiers: KeyModifiers { ctrl: true, alt: false, shift: false },
-        };
+        let expected =
+            KeyEvent { code: KeyCode::Char('c'), modifiers: KeyModifiers { ctrl: true, alt: false, shift: false } };
         assert_eq!(key, expected);
     }
 
@@ -1500,10 +1365,8 @@ mod tests {
 
     #[test]
     fn test_display_kp_with_modifier() {
-        let event = KeyEvent {
-            code: KeyCode::KpEnter,
-            modifiers: KeyModifiers { ctrl: false, alt: true, shift: false },
-        };
+        let event =
+            KeyEvent { code: KeyCode::KpEnter, modifiers: KeyModifiers { ctrl: false, alt: true, shift: false } };
         assert_eq!(event.to_string(), "alt+kp_enter");
     }
 
@@ -1529,10 +1392,8 @@ mod tests {
         // Full format: \x1b[1083:1043:99;5:2u
         // codepoint=1083 (Cyrillic), shifted=1043, base=99 ('c'), modifier=5 (ctrl), event=2 (repeat)
         // 1083 is not known → fall back to base=99 → Char('c') with ctrl
-        let expected = KeyEvent {
-            code: KeyCode::Char('c'),
-            modifiers: KeyModifiers { ctrl: true, alt: false, shift: false },
-        };
+        let expected =
+            KeyEvent { code: KeyCode::Char('c'), modifiers: KeyModifiers { ctrl: true, alt: false, shift: false } };
         let key = parse_key("\x1b[1083:1043:99;5:2u");
         assert_eq!(key, expected);
         // Event type should be repeat
@@ -1551,10 +1412,8 @@ mod tests {
     fn test_parse_shifted_csi_u_with_modifier() {
         // \x1b[97:65;5u = Ctrl+'a' with shifted 'A', modifier 5 (ctrl)
         // codepoint 97 is known, so no base layout fallback
-        let expected = KeyEvent {
-            code: KeyCode::Char('a'),
-            modifiers: KeyModifiers { ctrl: true, alt: false, shift: false },
-        };
+        let expected =
+            KeyEvent { code: KeyCode::Char('a'), modifiers: KeyModifiers { ctrl: true, alt: false, shift: false } };
         assert_eq!(parse_key("\x1b[97:65;5u"), expected);
     }
 }

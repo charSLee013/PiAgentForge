@@ -60,11 +60,7 @@ pub fn normalize_to_lf(text: &str) -> String {
 
 /// Restore line endings from `\n` back to the original ending.
 pub fn restore_line_endings(text: &str, ending: &str) -> String {
-    if ending == "\r\n" {
-        text.replace('\n', "\r\n")
-    } else {
-        text.to_string()
-    }
+    if ending == "\r\n" { text.replace('\n', "\r\n") } else { text.to_string() }
 }
 
 // ---------------------------------------------------------------------------
@@ -90,11 +86,7 @@ pub fn strip_bom(content: &str) -> (String, String) {
 /// Strips trailing whitespace per line, normalizes smart quotes and dashes
 /// to ASCII equivalents, and normalizes special spaces.
 pub fn normalize_for_fuzzy_match(text: &str) -> String {
-    let mut result = text
-        .lines()
-        .map(|line| line.trim_end())
-        .collect::<Vec<&str>>()
-        .join("\n");
+    let mut result = text.lines().map(|line| line.trim_end()).collect::<Vec<&str>>().join("\n");
 
     // Normalize Unicode characters.
     result = result
@@ -103,8 +95,8 @@ pub fn normalize_for_fuzzy_match(text: &str) -> String {
         .replace(['\u{2010}', '\u{2011}', '\u{2012}', '\u{2013}', '\u{2014}', '\u{2015}', '\u{2212}'], "-")
         .replace(
             [
-                '\u{00A0}', '\u{2002}', '\u{2003}', '\u{2004}', '\u{2005}', '\u{2006}', '\u{2007}',
-                '\u{2008}', '\u{2009}', '\u{200A}', '\u{202F}', '\u{205F}', '\u{3000}',
+                '\u{00A0}', '\u{2002}', '\u{2003}', '\u{2004}', '\u{2005}', '\u{2006}', '\u{2007}', '\u{2008}',
+                '\u{2009}', '\u{200A}', '\u{202F}', '\u{205F}', '\u{3000}',
             ],
             " ",
         );
@@ -196,17 +188,12 @@ pub fn apply_edits_to_normalized_content(
     }
 
     // Find all matches.
-    let initial_matches: Vec<FuzzyMatchResult> = normalized_edits
-        .iter()
-        .map(|edit| fuzzy_find_text(normalized_content, &edit.old_text))
-        .collect();
+    let initial_matches: Vec<FuzzyMatchResult> =
+        normalized_edits.iter().map(|edit| fuzzy_find_text(normalized_content, &edit.old_text)).collect();
 
     let any_fuzzy = initial_matches.iter().any(|m| m.used_fuzzy_match);
-    let base_content = if any_fuzzy {
-        normalize_for_fuzzy_match(normalized_content)
-    } else {
-        normalized_content.to_string()
-    };
+    let base_content =
+        if any_fuzzy { normalize_for_fuzzy_match(normalized_content) } else { normalized_content.to_string() };
 
     // Find matches again in the base content.
     struct MatchedEdit {
@@ -285,17 +272,11 @@ pub fn apply_edits_to_normalized_content(
                 file_path
             )
         } else {
-            format!(
-                "No changes made to {}. The replacements produced identical content.",
-                file_path
-            )
+            format!("No changes made to {}. The replacements produced identical content.", file_path)
         });
     }
 
-    Ok(AppliedEdits {
-        base_content,
-        new_content,
-    })
+    Ok(AppliedEdits { base_content, new_content })
 }
 
 /// Count occurrences of `old_text` in `content` (fuzzy).
@@ -328,8 +309,7 @@ pub fn generate_diff_string(old_content: &str, new_content: &str, context_lines:
 
     let ops = diff.ops();
     for (op_idx, op) in ops.iter().enumerate() {
-        let next_is_change = op_idx + 1 < ops.len()
-            && !matches!(ops[op_idx + 1], DiffOp::Equal { .. });
+        let next_is_change = op_idx + 1 < ops.len() && !matches!(ops[op_idx + 1], DiffOp::Equal { .. });
 
         match op {
             DiffOp::Equal { len, .. } => {
@@ -341,12 +321,7 @@ pub fn generate_diff_string(old_content: &str, new_content: &str, context_lines:
                     if count <= context_lines * 2 {
                         for _ in 0..count {
                             let line = old_lines.get(old_line_num - 1).unwrap_or(&"");
-                            output.push(format!(
-                                " {:>width$} {}",
-                                old_line_num,
-                                line,
-                                width = line_num_width
-                            ));
+                            output.push(format!(" {:>width$} {}", old_line_num, line, width = line_num_width));
                             old_line_num += 1;
                             new_line_num += 1;
                         }
@@ -354,12 +329,7 @@ pub fn generate_diff_string(old_content: &str, new_content: &str, context_lines:
                         let shown = context_lines.min(count);
                         for _ in 0..shown {
                             let line = old_lines.get(old_line_num - 1).unwrap_or(&"");
-                            output.push(format!(
-                                " {:>width$} {}",
-                                old_line_num,
-                                line,
-                                width = line_num_width
-                            ));
+                            output.push(format!(" {:>width$} {}", old_line_num, line, width = line_num_width));
                             old_line_num += 1;
                             new_line_num += 1;
                         }
@@ -370,12 +340,7 @@ pub fn generate_diff_string(old_content: &str, new_content: &str, context_lines:
                         new_line_num += skipped;
                         for _ in 0..shown {
                             let line = old_lines.get(old_line_num - 1).unwrap_or(&"");
-                            output.push(format!(
-                                " {:>width$} {}",
-                                old_line_num,
-                                line,
-                                width = line_num_width
-                            ));
+                            output.push(format!(" {:>width$} {}", old_line_num, line, width = line_num_width));
                             old_line_num += 1;
                             new_line_num += 1;
                         }
@@ -384,12 +349,7 @@ pub fn generate_diff_string(old_content: &str, new_content: &str, context_lines:
                     let shown = context_lines.min(count);
                     for _ in 0..shown {
                         let line = old_lines.get(old_line_num - 1).unwrap_or(&"");
-                        output.push(format!(
-                            " {:>width$} {}",
-                            old_line_num,
-                            line,
-                            width = line_num_width
-                        ));
+                        output.push(format!(" {:>width$} {}", old_line_num, line, width = line_num_width));
                         old_line_num += 1;
                         new_line_num += 1;
                     }
@@ -410,12 +370,7 @@ pub fn generate_diff_string(old_content: &str, new_content: &str, context_lines:
                     let shown = count - skipped;
                     for _ in 0..shown {
                         let line = old_lines.get(old_line_num - 1).unwrap_or(&"");
-                        output.push(format!(
-                            " {:>width$} {}",
-                            old_line_num,
-                            line,
-                            width = line_num_width
-                        ));
+                        output.push(format!(" {:>width$} {}", old_line_num, line, width = line_num_width));
                         old_line_num += 1;
                         new_line_num += 1;
                     }
@@ -432,12 +387,7 @@ pub fn generate_diff_string(old_content: &str, new_content: &str, context_lines:
                 }
                 for _ in 0..*old_len {
                     let line = old_lines.get(old_line_num - 1).unwrap_or(&"");
-                    output.push(format!(
-                        "-{:>width$} {}",
-                        old_line_num,
-                        line,
-                        width = line_num_width
-                    ));
+                    output.push(format!("-{:>width$} {}", old_line_num, line, width = line_num_width));
                     old_line_num += 1;
                 }
                 last_was_change = true;
@@ -448,12 +398,7 @@ pub fn generate_diff_string(old_content: &str, new_content: &str, context_lines:
                 }
                 for _ in 0..*new_len {
                     let line = new_lines.get(new_line_num - 1).unwrap_or(&"");
-                    output.push(format!(
-                        "+{:>width$} {}",
-                        new_line_num,
-                        line,
-                        width = line_num_width
-                    ));
+                    output.push(format!("+{:>width$} {}", new_line_num, line, width = line_num_width));
                     new_line_num += 1;
                 }
                 last_was_change = true;
@@ -464,22 +409,12 @@ pub fn generate_diff_string(old_content: &str, new_content: &str, context_lines:
                 }
                 for _ in 0..*old_len {
                     let line = old_lines.get(old_line_num - 1).unwrap_or(&"");
-                    output.push(format!(
-                        "-{:>width$} {}",
-                        old_line_num,
-                        line,
-                        width = line_num_width
-                    ));
+                    output.push(format!("-{:>width$} {}", old_line_num, line, width = line_num_width));
                     old_line_num += 1;
                 }
                 for _ in 0..*new_len {
                     let line = new_lines.get(new_line_num - 1).unwrap_or(&"");
-                    output.push(format!(
-                        "+{:>width$} {}",
-                        new_line_num,
-                        line,
-                        width = line_num_width
-                    ));
+                    output.push(format!("+{:>width$} {}", new_line_num, line, width = line_num_width));
                     new_line_num += 1;
                 }
                 last_was_change = true;
@@ -487,10 +422,7 @@ pub fn generate_diff_string(old_content: &str, new_content: &str, context_lines:
         }
     }
 
-    DiffResult {
-        diff: output.join("\n"),
-        first_changed_line,
-    }
+    DiffResult { diff: output.join("\n"), first_changed_line }
 }
 
 // ---------------------------------------------------------------------------
@@ -504,9 +436,7 @@ pub async fn apply_edits_and_diff(
     edits: &[Edit],
     file_path: &str,
 ) -> Result<DiffResult, String> {
-    let content = tokio::fs::read_to_string(absolute_path)
-        .await
-        .map_err(|e| format!("Could not read file: {}", e))?;
+    let content = tokio::fs::read_to_string(absolute_path).await.map_err(|e| format!("Could not read file: {}", e))?;
 
     // Strip BOM.
     let (_bom, text) = strip_bom(&content);
@@ -579,10 +509,7 @@ mod tests {
     #[test]
     fn test_apply_edits_single() {
         let content = "hello\nworld\nfoo";
-        let edits = vec![Edit {
-            old_text: "world".to_string(),
-            new_text: "there".to_string(),
-        }];
+        let edits = vec![Edit { old_text: "world".to_string(), new_text: "there".to_string() }];
         let result = apply_edits_to_normalized_content(content, &edits, "test.txt").unwrap();
         assert_eq!(result.new_content, "hello\nthere\nfoo");
     }
@@ -591,14 +518,8 @@ mod tests {
     fn test_apply_edits_multiple_disjoint() {
         let content = "aaa\nbbb\nccc\nddd";
         let edits = vec![
-            Edit {
-                old_text: "aaa".to_string(),
-                new_text: "111".to_string(),
-            },
-            Edit {
-                old_text: "ddd".to_string(),
-                new_text: "999".to_string(),
-            },
+            Edit { old_text: "aaa".to_string(), new_text: "111".to_string() },
+            Edit { old_text: "ddd".to_string(), new_text: "999".to_string() },
         ];
         let result = apply_edits_to_normalized_content(content, &edits, "test.txt").unwrap();
         assert_eq!(result.new_content, "111\nbbb\nccc\n999");
@@ -607,10 +528,7 @@ mod tests {
     #[test]
     fn test_apply_edits_no_match() {
         let content = "hello world";
-        let edits = vec![Edit {
-            old_text: "nope".to_string(),
-            new_text: "xxx".to_string(),
-        }];
+        let edits = vec![Edit { old_text: "nope".to_string(), new_text: "xxx".to_string() }];
         let result = apply_edits_to_normalized_content(content, &edits, "test.txt");
         assert!(result.is_err());
     }
@@ -619,14 +537,8 @@ mod tests {
     fn test_apply_edits_overlap() {
         let content = "hello world foo";
         let edits = vec![
-            Edit {
-                old_text: "hello world".to_string(),
-                new_text: "hi".to_string(),
-            },
-            Edit {
-                old_text: "world foo".to_string(),
-                new_text: "there".to_string(),
-            },
+            Edit { old_text: "hello world".to_string(), new_text: "hi".to_string() },
+            Edit { old_text: "world foo".to_string(), new_text: "there".to_string() },
         ];
         let result = apply_edits_to_normalized_content(content, &edits, "test.txt");
         assert!(result.is_err());
@@ -653,10 +565,7 @@ mod tests {
     #[test]
     fn test_apply_edits_identical_content() {
         let content = "hello world";
-        let edits = vec![Edit {
-            old_text: "hello".to_string(),
-            new_text: "hello".to_string(),
-        }];
+        let edits = vec![Edit { old_text: "hello".to_string(), new_text: "hello".to_string() }];
         let result = apply_edits_to_normalized_content(content, &edits, "test.txt");
         assert!(result.is_err());
         assert!(result.unwrap_err().contains("No changes"));

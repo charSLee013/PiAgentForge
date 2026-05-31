@@ -9,8 +9,8 @@
 //! Mirrors `packages/coding-agent/src/modes/interactive/components/footer.ts`
 
 use crate::Theme;
-use pi_tui_core::utils::{truncate_to_width, visible_width};
 use pi_tui_core::Component;
+use pi_tui_core::utils::{truncate_to_width, visible_width};
 
 /// Format token counts into human-readable strings (e.g. `1.5k`, `3M`).
 fn format_tokens(count: u64) -> String {
@@ -31,10 +31,7 @@ fn format_tokens(count: u64) -> String {
 
 /// Sanitize text for display in a single-line status (no newlines, collapse spaces).
 fn sanitize(text: &str) -> String {
-    text.replace(['\r', '\n', '\t'], " ")
-        .split_whitespace()
-        .collect::<Vec<_>>()
-        .join(" ")
+    text.replace(['\r', '\n', '\t'], " ").split_whitespace().collect::<Vec<_>>().join(" ")
 }
 
 /// Footer component showing session metadata at the bottom of the screen.
@@ -122,11 +119,7 @@ impl Component for Footer {
         let context_display = if self.context_percent.is_nan() {
             format!("?/{}{auto_indicator}", format_tokens(self.context_window))
         } else {
-            format!(
-                "{:.1}%/{}{auto_indicator}",
-                self.context_percent,
-                format_tokens(self.context_window)
-            )
+            format!("{:.1}%/{}{auto_indicator}", self.context_percent, format_tokens(self.context_window))
         };
         let context_colored = if self.context_percent > 90.0 {
             self.theme.ansi(&self.theme.error, &context_display)
@@ -137,11 +130,7 @@ impl Component for Footer {
         };
 
         // Build left stats text with context at the end
-        let left_stats = if stats.is_empty() {
-            context_colored
-        } else {
-            format!("{stats} {context_colored}")
-        };
+        let left_stats = if stats.is_empty() { context_colored } else { format!("{stats} {context_colored}") };
         let dim_left = self.theme.dim(&left_stats);
 
         // Right side: model name
@@ -226,19 +215,7 @@ mod tests {
     #[test]
     fn test_footer_empty_stats() {
         let theme = Theme::dark();
-        let footer = Footer::new(
-            "/tmp".into(),
-            None,
-            0,
-            0,
-            0,
-            0,
-            "test-model".into(),
-            0.0,
-            100000,
-            false,
-            &theme,
-        );
+        let footer = Footer::new("/tmp".into(), None, 0, 0, 0, 0, "test-model".into(), 0.0, 100000, false, &theme);
         let lines = footer.render(80);
         assert_eq!(lines.len(), 2);
     }
@@ -246,19 +223,7 @@ mod tests {
     #[test]
     fn test_footer_context_warning() {
         let theme = Theme::dark();
-        let footer = Footer::new(
-            "/".into(),
-            None,
-            100,
-            50,
-            0,
-            0,
-            "model".into(),
-            85.0,
-            100000,
-            false,
-            &theme,
-        );
+        let footer = Footer::new("/".into(), None, 100, 50, 0, 0, "model".into(), 85.0, 100000, false, &theme);
         let lines = footer.render(80);
         assert_eq!(lines.len(), 2);
     }
@@ -266,21 +231,8 @@ mod tests {
     #[test]
     fn test_footer_context_error() {
         let theme = Theme::dark();
-        let footer = Footer::new(
-            "/".into(),
-            None,
-            0,
-            0,
-            0,
-            0,
-            "model".into(),
-            95.0,
-            100000,
-            false,
-            &theme,
-        );
+        let footer = Footer::new("/".into(), None, 0, 0, 0, 0, "model".into(), 95.0, 100000, false, &theme);
         let lines = footer.render(80);
         assert_eq!(lines.len(), 2);
     }
-
 }

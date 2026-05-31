@@ -29,9 +29,9 @@
 
 pub mod agent;
 pub mod agent_loop;
-pub mod queue;
 /// Context compaction: token estimation, cut-point planning, LLM summary generation.
 pub mod compaction;
+pub mod queue;
 pub mod session;
 pub mod types;
 
@@ -47,7 +47,7 @@ pub mod test_utils;
 
 // Re-export the most important types at the crate root for convenience.
 pub use agent::Agent;
-pub use agent_loop::{agent_loop, AgentError};
+pub use agent_loop::{AgentError, agent_loop};
 pub use hook::AgentLoopConfig;
 pub use queue::{MessageQueue, QueueMode, QueuePriority};
 pub use session::SessionManager;
@@ -55,5 +55,5 @@ pub use types::*;
 
 /// Re-export compaction types at the crate root for convenience.
 pub use compaction::estimator::{estimate_message_tokens, should_compact};
-pub use compaction::generator::{call_llm_for_text, generate_summary, CompactionResult};
-pub use compaction::planner::{find_cut_point, prepare_compaction, CompactionPreparation};
+pub use compaction::generator::{CompactionResult, call_llm_for_text, generate_summary};
+pub use compaction::planner::{CompactionPreparation, find_cut_point, prepare_compaction};

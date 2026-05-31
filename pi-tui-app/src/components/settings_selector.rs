@@ -3,9 +3,9 @@
 //! Wraps a core `SettingsList` with application-level setting items
 //! and theme-aware styling.
 
+use crate::Theme;
 use pi_tui_core::component::Component;
 use pi_tui_core::components::settings_list::{SettingItem, SettingsList};
-use crate::Theme;
 
 /// A settings selector component wrapping a `SettingsList`.
 pub struct SettingsSelector {
@@ -18,18 +18,12 @@ impl SettingsSelector {
     /// * `theme` — application theme for styling.
     /// * `settings` — initial setting items.
     /// * `enable_search` — whether to show the search bar.
-    pub fn new(
-        theme: &Theme,
-        settings: Vec<SettingItem>,
-        enable_search: bool,
-    ) -> Self {
+    pub fn new(theme: &Theme, settings: Vec<SettingItem>, enable_search: bool) -> Self {
         let list_theme = theme.to_settings_list_theme();
         let max_visible = 10;
         let settings_list = SettingsList::new(settings, max_visible, list_theme, enable_search);
 
-        Self {
-            settings_list,
-        }
+        Self { settings_list }
     }
 
     /// Access the inner settings list.
@@ -157,15 +151,13 @@ mod tests {
     #[test]
     fn test_settings_selector_custom_items() {
         let theme = Theme::dark();
-        let items = vec![
-            SettingItem {
-                id: "test-option".into(),
-                label: "Test Option".into(),
-                description: None,
-                current_value: "default".into(),
-                values: Some(vec!["default".into(), "custom".into()]),
-            },
-        ];
+        let items = vec![SettingItem {
+            id: "test-option".into(),
+            label: "Test Option".into(),
+            description: None,
+            current_value: "default".into(),
+            values: Some(vec!["default".into(), "custom".into()]),
+        }];
         let selector = SettingsSelector::new(&theme, items, false);
         let lines = selector.render(80);
         let joined = lines.join(" ");

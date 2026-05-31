@@ -4,10 +4,10 @@
 //!
 //! Mirrors `packages/coding-agent/src/modes/interactive/components/compaction-summary-message.ts`
 
+use crate::Theme;
 use pi_tui_core::components::spacer::Spacer;
 use pi_tui_core::components::text::Text;
 use pi_tui_core::{Component, Container};
-use crate::Theme;
 
 /// Renders a compaction summary message with collapsed/expanded state.
 ///
@@ -33,20 +33,12 @@ impl CompactionSummaryMessage {
             inner.add(Spacer::new(1));
 
             let header = format!("Compacted from {tokens_before} tokens");
-            inner.add(Text::with_padding(
-                theme.ansi(&theme.text, &header),
-                1,
-                0,
-            ));
+            inner.add(Text::with_padding(theme.ansi(&theme.text, &header), 1, 0));
             inner.add(Spacer::new(1));
 
             let trimmed = summary.trim();
             if !trimmed.is_empty() {
-                inner.add(Text::with_padding(
-                    theme.ansi(&theme.text, trimmed),
-                    1,
-                    0,
-                ));
+                inner.add(Text::with_padding(theme.ansi(&theme.text, trimmed), 1, 0));
             }
         } else {
             let line = format!(
@@ -79,12 +71,7 @@ mod tests {
     #[test]
     fn test_compaction_summary_expanded() {
         let theme = Theme::dark();
-        let msg = CompactionSummaryMessage::new(
-            "Removed old context".into(),
-            15000,
-            true,
-            &theme,
-        );
+        let msg = CompactionSummaryMessage::new("Removed old context".into(), 15000, true, &theme);
         let lines = msg.render(80);
         assert!(lines.iter().any(|l| l.contains("[compaction]")));
         assert!(lines.iter().any(|l| l.contains("15000")));
@@ -94,12 +81,7 @@ mod tests {
     #[test]
     fn test_compaction_summary_collapsed() {
         let theme = Theme::dark();
-        let msg = CompactionSummaryMessage::new(
-            "Hidden body".into(),
-            50000,
-            false,
-            &theme,
-        );
+        let msg = CompactionSummaryMessage::new("Hidden body".into(), 50000, false, &theme);
         let lines = msg.render(80);
         assert!(lines.iter().any(|l| l.contains("[compaction]")));
         assert!(lines.iter().any(|l| l.contains("50000")));

@@ -26,24 +26,14 @@ pub async fn read_header(path: &Path) -> Result<SessionHeader, SessionError> {
     let mut first_line = String::new();
     let bytes_read = reader.read_line(&mut first_line).await?;
     if bytes_read == 0 {
-        return Err(SessionError::InvalidSession(format!(
-            "Empty session file: {}",
-            path.display()
-        )));
+        return Err(SessionError::InvalidSession(format!("Empty session file: {}", path.display())));
     }
     let trimmed = first_line.trim();
     if trimmed.is_empty() {
-        return Err(SessionError::InvalidSession(format!(
-            "Empty first line in session file: {}",
-            path.display()
-        )));
+        return Err(SessionError::InvalidSession(format!("Empty first line in session file: {}", path.display())));
     }
-    let header: SessionHeader =
-        serde_json::from_str(trimmed).map_err(|e| SessionError::InvalidSession(format!(
-            "Invalid session header in {}: {}",
-            path.display(),
-            e
-        )))?;
+    let header: SessionHeader = serde_json::from_str(trimmed)
+        .map_err(|e| SessionError::InvalidSession(format!("Invalid session header in {}: {}", path.display(), e)))?;
     Ok(header)
 }
 
@@ -59,24 +49,14 @@ pub async fn read_all(path: &Path) -> Result<(SessionHeader, Vec<SessionEntry>, 
     // Read header
     let bytes_read = reader.read_line(&mut line).await?;
     if bytes_read == 0 {
-        return Err(SessionError::InvalidSession(format!(
-            "Empty session file: {}",
-            path.display()
-        )));
+        return Err(SessionError::InvalidSession(format!("Empty session file: {}", path.display())));
     }
     let trimmed = line.trim();
     if trimmed.is_empty() {
-        return Err(SessionError::InvalidSession(format!(
-            "Empty first line in session file: {}",
-            path.display()
-        )));
+        return Err(SessionError::InvalidSession(format!("Empty first line in session file: {}", path.display())));
     }
-    let header: SessionHeader =
-        serde_json::from_str(trimmed).map_err(|e| SessionError::InvalidSession(format!(
-            "Invalid session header in {}: {}",
-            path.display(),
-            e
-        )))?;
+    let header: SessionHeader = serde_json::from_str(trimmed)
+        .map_err(|e| SessionError::InvalidSession(format!("Invalid session header in {}: {}", path.display(), e)))?;
 
     // Read entries
     let mut entries = Vec::new();
@@ -110,11 +90,7 @@ pub async fn append(path: &Path, entry: &SessionEntry) -> Result<(), SessionErro
         tokio::fs::create_dir_all(parent).await?;
     }
 
-    let mut file = OpenOptions::new()
-        .create(true)
-        .append(true)
-        .open(path)
-        .await?;
+    let mut file = OpenOptions::new().create(true).append(true).open(path).await?;
 
     let line = serde_json::to_string(entry)?;
     file.write_all(line.as_bytes()).await?;
@@ -140,11 +116,7 @@ pub async fn create(path: &Path, header: &SessionHeader) -> Result<(), SessionEr
 /// Overwrite a session file with the full contents (header + all entries).
 ///
 /// Used when migration or branching rewrites the file.
-pub async fn rewrite(
-    path: &Path,
-    header: &SessionHeader,
-    entries: &[SessionEntry],
-) -> Result<(), SessionError> {
+pub async fn rewrite(path: &Path, header: &SessionHeader, entries: &[SessionEntry]) -> Result<(), SessionError> {
     if let Some(parent) = path.parent() {
         tokio::fs::create_dir_all(parent).await?;
     }

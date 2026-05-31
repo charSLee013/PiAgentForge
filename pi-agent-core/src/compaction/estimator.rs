@@ -37,11 +37,7 @@ pub fn estimate_context_tokens(messages: &[Message], total_tokens_from_usage: Op
 /// Determine whether compaction should be triggered.
 ///
 /// Returns `true` when estimated tokens exceed the threshold of the context window.
-pub fn should_compact(
-    estimated_tokens: u64,
-    context_window: u64,
-    reserve_tokens: u64,
-) -> bool {
+pub fn should_compact(estimated_tokens: u64, context_window: u64, reserve_tokens: u64) -> bool {
     if context_window == 0 {
         return false;
     }
@@ -58,16 +54,8 @@ pub struct ContextUsage {
 
 impl ContextUsage {
     pub fn new(estimated_tokens: u64, context_window: u64) -> Self {
-        let percent = if context_window > 0 {
-            (estimated_tokens as f64 / context_window as f64) * 100.0
-        } else {
-            0.0
-        };
-        Self {
-            estimated_tokens,
-            context_window,
-            percent,
-        }
+        let percent = if context_window > 0 { (estimated_tokens as f64 / context_window as f64) * 100.0 } else { 0.0 };
+        Self { estimated_tokens, context_window, percent }
     }
 }
 

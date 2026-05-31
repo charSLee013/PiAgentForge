@@ -10,8 +10,8 @@
 //! - Cell-size calculation
 //! - Image deletion sequences
 
-use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::Mutex;
+use std::sync::atomic::{AtomicU32, Ordering};
 
 // ============================================================================
 // Types
@@ -41,10 +41,7 @@ pub struct CellDimensions {
 
 impl Default for CellDimensions {
     fn default() -> Self {
-        Self {
-            width_px: 9.0,
-            height_px: 18.0,
-        }
+        Self { width_px: 9.0, height_px: 18.0 }
     }
 }
 
@@ -105,10 +102,7 @@ pub struct RenderedImage {
 static CACHED_CAPABILITIES: Mutex<Option<TerminalCapabilities>> = Mutex::new(None);
 
 /// Global cell dimensions (default 9×18 px, updateable via `set_cell_dimensions`).
-static CELL_DIMENSIONS: Mutex<CellDimensions> = Mutex::new(CellDimensions {
-    width_px: 9.0,
-    height_px: 18.0,
-});
+static CELL_DIMENSIONS: Mutex<CellDimensions> = Mutex::new(CellDimensions { width_px: 9.0, height_px: 18.0 });
 
 /// Monotonically increasing image ID counter.
 static NEXT_IMAGE_ID: AtomicU32 = AtomicU32::new(1);
@@ -120,78 +114,41 @@ static NEXT_IMAGE_ID: AtomicU32 = AtomicU32::new(1);
 impl TerminalCapabilities {
     /// Detect capabilities from environment variables.
     pub fn detect() -> Self {
-        let term_program = std::env::var("TERM_PROGRAM")
-            .unwrap_or_default()
-            .to_lowercase();
+        let term_program = std::env::var("TERM_PROGRAM").unwrap_or_default().to_lowercase();
         let term = std::env::var("TERM").unwrap_or_default().to_lowercase();
-        let color_term = std::env::var("COLORTERM")
-            .unwrap_or_default()
-            .to_lowercase();
+        let color_term = std::env::var("COLORTERM").unwrap_or_default().to_lowercase();
 
         // tmux and screen swallow OSC 8 by default. Image protocols are also
         // unreliable under tmux/screen.
-        let in_tmux_or_screen = std::env::var("TMUX").is_ok()
-            || term.starts_with("tmux")
-            || term.starts_with("screen");
+        let in_tmux_or_screen = std::env::var("TMUX").is_ok() || term.starts_with("tmux") || term.starts_with("screen");
         if in_tmux_or_screen {
             let true_color = color_term == "truecolor" || color_term == "24bit";
-            return Self {
-                images: None,
-                true_color,
-                hyperlinks: false,
-            };
+            return Self { images: None, true_color, hyperlinks: false };
         }
 
         if std::env::var("KITTY_WINDOW_ID").is_ok() || term_program == "kitty" {
-            return Self {
-                images: Some(ImageProtocol::Kitty),
-                true_color: true,
-                hyperlinks: true,
-            };
+            return Self { images: Some(ImageProtocol::Kitty), true_color: true, hyperlinks: true };
         }
 
-        if term_program == "ghostty"
-            || term.contains("ghostty")
-            || std::env::var("GHOSTTY_RESOURCES_DIR").is_ok()
-        {
-            return Self {
-                images: Some(ImageProtocol::Kitty),
-                true_color: true,
-                hyperlinks: true,
-            };
+        if term_program == "ghostty" || term.contains("ghostty") || std::env::var("GHOSTTY_RESOURCES_DIR").is_ok() {
+            return Self { images: Some(ImageProtocol::Kitty), true_color: true, hyperlinks: true };
         }
 
         if std::env::var("WEZTERM_PANE").is_ok() || term_program == "wezterm" {
-            return Self {
-                images: Some(ImageProtocol::Kitty),
-                true_color: true,
-                hyperlinks: true,
-            };
+            return Self { images: Some(ImageProtocol::Kitty), true_color: true, hyperlinks: true };
         }
 
         if std::env::var("ITERM_SESSION_ID").is_ok() || term_program == "iterm.app" {
-            return Self {
-                images: Some(ImageProtocol::Iterm2),
-                true_color: true,
-                hyperlinks: true,
-            };
+            return Self { images: Some(ImageProtocol::Iterm2), true_color: true, hyperlinks: true };
         }
 
         if term_program == "vscode" || term_program == "alacritty" {
-            return Self {
-                images: None,
-                true_color: true,
-                hyperlinks: true,
-            };
+            return Self { images: None, true_color: true, hyperlinks: true };
         }
 
         // Unknown terminal: be conservative.
         let true_color = color_term == "truecolor" || color_term == "24bit";
-        Self {
-            images: None,
-            true_color,
-            hyperlinks: false,
-        }
+        Self { images: None, true_color, hyperlinks: false }
     }
 }
 
@@ -252,14 +209,9 @@ pub fn allocate_image_id() -> usize {
 /// Supports PNG, JPEG, GIF, WebP, and other formats recognized by `image`.
 pub fn get_image_dimensions_from_bytes(bytes: &[u8]) -> Option<ImageDimensions> {
     let cursor = std::io::Cursor::new(bytes);
-    let reader = image::ImageReader::new(cursor)
-        .with_guessed_format()
-        .ok()?;
+    let reader = image::ImageReader::new(cursor).with_guessed_format().ok()?;
     let (w, h) = reader.into_dimensions().ok()?;
-    Some(ImageDimensions {
-        width_px: w,
-        height_px: h,
-    })
+    Some(ImageDimensions { width_px: w, height_px: h })
 }
 
 /// Parse image dimensions from base64-encoded data.
@@ -268,9 +220,7 @@ pub fn get_image_dimensions_from_bytes(bytes: &[u8]) -> Option<ImageDimensions> 
 /// source; the `image` crate auto-detects the format from magic bytes.
 pub fn get_image_dimensions(base64_data: &str, _mime_type: &str) -> Option<ImageDimensions> {
     use base64::Engine as _;
-    let bytes = base64::engine::general_purpose::STANDARD
-        .decode(base64_data.as_bytes())
-        .ok()?;
+    let bytes = base64::engine::general_purpose::STANDARD.decode(base64_data.as_bytes()).ok()?;
     get_image_dimensions_from_bytes(&bytes)
 }
 
@@ -349,11 +299,7 @@ pub fn calculate_image_rows(
 ///
 /// Produces output like `[Image: filename.png 800x600]` when a filename is
 /// provided, or `[Image: image/png 800x600]` without one.
-pub fn image_fallback(
-    mime_type: &str,
-    dimensions: Option<&ImageDimensions>,
-    filename: Option<&str>,
-) -> String {
+pub fn image_fallback(mime_type: &str, dimensions: Option<&ImageDimensions>, filename: Option<&str>) -> String {
     let mut parts: Vec<String> = Vec::new();
     if let Some(name) = filename {
         parts.push(name.to_string());
@@ -501,42 +447,18 @@ pub fn render_image(
 
     let max_width = options.max_width_cells.unwrap_or(80).max(1);
     let cell_dims = get_cell_dimensions();
-    let size = calculate_image_cell_size(
-        image_dimensions,
-        max_width,
-        options.max_height_cells,
-        &cell_dims,
-    );
+    let size = calculate_image_cell_size(image_dimensions, max_width, options.max_height_cells, &cell_dims);
 
     match images {
         ImageProtocol::Kitty => {
-            let sequence = encode_kitty(
-                base64_data,
-                Some(size.columns),
-                Some(size.rows),
-                options.image_id,
-                options.move_cursor,
-            );
-            Some(RenderedImage {
-                sequence,
-                rows: size.rows,
-                image_id: options.image_id,
-            })
+            let sequence =
+                encode_kitty(base64_data, Some(size.columns), Some(size.rows), options.image_id, options.move_cursor);
+            Some(RenderedImage { sequence, rows: size.rows, image_id: options.image_id })
         }
         ImageProtocol::Iterm2 => {
-            let sequence = encode_iterm2(
-                base64_data,
-                Some(size.columns),
-                Some("auto"),
-                None,
-                options.preserve_aspect_ratio,
-                true,
-            );
-            Some(RenderedImage {
-                sequence,
-                rows: size.rows,
-                image_id: None,
-            })
+            let sequence =
+                encode_iterm2(base64_data, Some(size.columns), Some("auto"), None, options.preserve_aspect_ratio, true);
+            Some(RenderedImage { sequence, rows: size.rows, image_id: None })
         }
     }
 }
@@ -564,20 +486,14 @@ mod tests {
 
     #[test]
     fn test_image_fallback_with_all_info() {
-        let dims = ImageDimensions {
-            width_px: 800,
-            height_px: 600,
-        };
+        let dims = ImageDimensions { width_px: 800, height_px: 600 };
         let result = image_fallback("image/png", Some(&dims), Some("photo.png"));
         assert_eq!(result, "[Image: photo.png [image/png] 800x600]");
     }
 
     #[test]
     fn test_image_fallback_no_filename() {
-        let dims = ImageDimensions {
-            width_px: 1024,
-            height_px: 768,
-        };
+        let dims = ImageDimensions { width_px: 1024, height_px: 768 };
         let result = image_fallback("image/jpeg", Some(&dims), None);
         assert_eq!(result, "[Image: [image/jpeg] 1024x768]");
     }
@@ -600,10 +516,7 @@ mod tests {
 
     #[test]
     fn test_calculate_image_cells() {
-        let dims = ImageDimensions {
-            width_px: 800,
-            height_px: 600,
-        };
+        let dims = ImageDimensions { width_px: 800, height_px: 600 };
         let (cols, rows) = calculate_image_cells(&dims, 60, None);
         assert!(cols >= 1);
         assert!(cols <= 60);
@@ -612,14 +525,8 @@ mod tests {
 
     #[test]
     fn test_calculate_image_cell_size_exact() {
-        let dims = ImageDimensions {
-            width_px: 800,
-            height_px: 600,
-        };
-        let cell = CellDimensions {
-            width_px: 9.0,
-            height_px: 18.0,
-        };
+        let dims = ImageDimensions { width_px: 800, height_px: 600 };
+        let cell = CellDimensions { width_px: 9.0, height_px: 18.0 };
         let size = calculate_image_cell_size(&dims, 60, None, &cell);
         // At 60 cols: width_scale = (60 * 9) / 800 = 0.675
         // scaled_w = 800 * 0.675 = 540 -> 540/9 = 60 cols
@@ -630,14 +537,8 @@ mod tests {
 
     #[test]
     fn test_calculate_image_cell_size_with_max_height() {
-        let dims = ImageDimensions {
-            width_px: 800,
-            height_px: 600,
-        };
-        let cell = CellDimensions {
-            width_px: 9.0,
-            height_px: 18.0,
-        };
+        let dims = ImageDimensions { width_px: 800, height_px: 600 };
+        let cell = CellDimensions { width_px: 9.0, height_px: 18.0 };
         let size = calculate_image_cell_size(&dims, 60, Some(10), &cell);
         // width_scale = 0.675, height_scale = (10*18)/600 = 0.3
         // scale = min(0.675, 0.3) = 0.3
@@ -649,10 +550,7 @@ mod tests {
 
     #[test]
     fn test_calculate_image_rows() {
-        let dims = ImageDimensions {
-            width_px: 800,
-            height_px: 600,
-        };
+        let dims = ImageDimensions { width_px: 800, height_px: 600 };
         let rows = calculate_image_rows(&dims, 40, None);
         assert!(rows >= 1);
         // At 40 cols: width_scale = (40*9)/800 = 0.45
@@ -747,60 +645,45 @@ mod tests {
     #[test]
     fn test_detect_capabilities_tmux_sets_hyperlink_false() {
         // Simulate tmux
-        temp_env::with_vars(
-            [("TMUX", Some("/tmp/tmux-1/default")), ("TERM", Some("screen-256color"))],
-            || {
-                let caps = TerminalCapabilities::detect();
-                assert_eq!(caps.images, None);
-                assert!(!caps.hyperlinks);
-            },
-        );
+        temp_env::with_vars([("TMUX", Some("/tmp/tmux-1/default")), ("TERM", Some("screen-256color"))], || {
+            let caps = TerminalCapabilities::detect();
+            assert_eq!(caps.images, None);
+            assert!(!caps.hyperlinks);
+        });
     }
 
     #[test]
     fn test_detect_capabilities_kitty() {
-        temp_env::with_vars(
-            [("KITTY_WINDOW_ID", Some("1")), ("TERM_PROGRAM", Some("kitty"))],
-            || {
-                let caps = TerminalCapabilities::detect();
-                assert_eq!(caps.images, Some(ImageProtocol::Kitty));
-                assert!(caps.true_color);
-            },
-        );
+        temp_env::with_vars([("KITTY_WINDOW_ID", Some("1")), ("TERM_PROGRAM", Some("kitty"))], || {
+            let caps = TerminalCapabilities::detect();
+            assert_eq!(caps.images, Some(ImageProtocol::Kitty));
+            assert!(caps.true_color);
+        });
     }
 
     #[test]
     fn test_detect_capabilities_iterm2() {
-        temp_env::with_vars(
-            [("ITERM_SESSION_ID", Some("abc123")), ("TERM_PROGRAM", Some("iTerm.app"))],
-            || {
-                let caps = TerminalCapabilities::detect();
-                assert_eq!(caps.images, Some(ImageProtocol::Iterm2));
-                assert!(caps.true_color);
-            },
-        );
+        temp_env::with_vars([("ITERM_SESSION_ID", Some("abc123")), ("TERM_PROGRAM", Some("iTerm.app"))], || {
+            let caps = TerminalCapabilities::detect();
+            assert_eq!(caps.images, Some(ImageProtocol::Iterm2));
+            assert!(caps.true_color);
+        });
     }
 
     #[test]
     fn test_detect_capabilities_wezterm() {
-        temp_env::with_vars(
-            [("WEZTERM_PANE", Some("0")), ("TERM_PROGRAM", Some("WezTerm"))],
-            || {
-                let caps = TerminalCapabilities::detect();
-                assert_eq!(caps.images, Some(ImageProtocol::Kitty));
-            },
-        );
+        temp_env::with_vars([("WEZTERM_PANE", Some("0")), ("TERM_PROGRAM", Some("WezTerm"))], || {
+            let caps = TerminalCapabilities::detect();
+            assert_eq!(caps.images, Some(ImageProtocol::Kitty));
+        });
     }
 
     #[test]
     fn test_detect_capabilities_ghostty() {
-        temp_env::with_vars(
-            [("GHOSTTY_RESOURCES_DIR", Some("/tmp")), ("TERM_PROGRAM", Some("ghostty"))],
-            || {
-                let caps = TerminalCapabilities::detect();
-                assert_eq!(caps.images, Some(ImageProtocol::Kitty));
-            },
-        );
+        temp_env::with_vars([("GHOSTTY_RESOURCES_DIR", Some("/tmp")), ("TERM_PROGRAM", Some("ghostty"))], || {
+            let caps = TerminalCapabilities::detect();
+            assert_eq!(caps.images, Some(ImageProtocol::Kitty));
+        });
     }
 
     #[test]
@@ -842,11 +725,7 @@ mod tests {
 
     #[test]
     fn test_reset_capabilities_cache() {
-        set_capabilities(TerminalCapabilities {
-            images: None,
-            true_color: false,
-            hyperlinks: false,
-        });
+        set_capabilities(TerminalCapabilities { images: None, true_color: false, hyperlinks: false });
         reset_capabilities_cache();
         // After reset, re-detect. Depending on env, images may or may not be available.
         let _caps = get_capabilities();
@@ -906,20 +785,9 @@ mod tests {
 
     #[test]
     fn test_render_image_no_capabilities_fallback() {
-        set_capabilities(TerminalCapabilities {
-            images: None,
-            true_color: false,
-            hyperlinks: false,
-        });
-        let dims = ImageDimensions {
-            width_px: 800,
-            height_px: 600,
-        };
-        let result = render_image(
-            "AAAA",
-            &dims,
-            &ImageRenderOptions::default(),
-        );
+        set_capabilities(TerminalCapabilities { images: None, true_color: false, hyperlinks: false });
+        let dims = ImageDimensions { width_px: 800, height_px: 600 };
+        let result = render_image("AAAA", &dims, &ImageRenderOptions::default());
         assert!(result.is_none());
         reset_capabilities_cache();
     }
@@ -931,15 +799,8 @@ mod tests {
             true_color: true,
             hyperlinks: true,
         });
-        let dims = ImageDimensions {
-            width_px: 800,
-            height_px: 600,
-        };
-        let result = render_image(
-            "AAAA",
-            &dims,
-            &ImageRenderOptions::default(),
-        );
+        let dims = ImageDimensions { width_px: 800, height_px: 600 };
+        let result = render_image("AAAA", &dims, &ImageRenderOptions::default());
         assert!(result.is_some());
         let rendered = result.unwrap();
         assert!(rendered.sequence.starts_with("\x1b_G"));
@@ -954,15 +815,8 @@ mod tests {
             true_color: true,
             hyperlinks: true,
         });
-        let dims = ImageDimensions {
-            width_px: 800,
-            height_px: 600,
-        };
-        let result = render_image(
-            "AAAA",
-            &dims,
-            &ImageRenderOptions::default(),
-        );
+        let dims = ImageDimensions { width_px: 800, height_px: 600 };
+        let result = render_image("AAAA", &dims, &ImageRenderOptions::default());
         assert!(result.is_some());
         let rendered = result.unwrap();
         assert!(rendered.sequence.starts_with("\x1b]1337;File="));
@@ -999,10 +853,7 @@ mod tests {
     #[test]
     fn test_cell_dimensions_roundtrip() {
         let orig = get_cell_dimensions();
-        set_cell_dimensions(CellDimensions {
-            width_px: 10.0,
-            height_px: 20.0,
-        });
+        set_cell_dimensions(CellDimensions { width_px: 10.0, height_px: 20.0 });
         let updated = get_cell_dimensions();
         assert_eq!(updated.width_px, 10.0);
         assert_eq!(updated.height_px, 20.0);
@@ -1012,10 +863,7 @@ mod tests {
 
     #[test]
     fn test_calculate_image_cells_with_max_height() {
-        let dims = ImageDimensions {
-            width_px: 800,
-            height_px: 600,
-        };
+        let dims = ImageDimensions { width_px: 800, height_px: 600 };
         let (cols, rows) = calculate_image_cells(&dims, 60, Some(5));
         assert!(cols >= 1);
         assert!(cols <= 60);

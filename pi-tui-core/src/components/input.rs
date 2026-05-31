@@ -11,7 +11,7 @@
 //! - Escape: cancel (calls `on_escape`)
 
 use crate::component::Component;
-use crate::keys::{parse_key, KeyCode};
+use crate::keys::{KeyCode, parse_key};
 use crate::utils::visible_width;
 
 /// Single-line text input component.
@@ -44,14 +44,7 @@ impl Input {
 
     pub fn with_value(value: String) -> Self {
         let cursor = value.len();
-        Self {
-            value,
-            cursor,
-            focused: false,
-            placeholder: String::new(),
-            on_submit: None,
-            on_cancel: None,
-        }
+        Self { value, cursor, focused: false, placeholder: String::new(), on_submit: None, on_cancel: None }
     }
 
     /// Get the current input value.
@@ -325,11 +318,7 @@ impl Component for Input {
         };
 
         // Build the line with cursor
-        let line = if self.focused {
-            insert_cursor(&display_text, cursor_col, available)
-        } else {
-            display_text
-        };
+        let line = if self.focused { insert_cursor(&display_text, cursor_col, available) } else { display_text };
 
         // Pad to full width
         let full_line = format!("{}{}", prompt, line);

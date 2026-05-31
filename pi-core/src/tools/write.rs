@@ -79,11 +79,7 @@ pub async fn execute_write_with(
         fs.write(&absolute_path, input.content.as_bytes()).await?;
 
         Ok::<_, WriteError>(WriteResult {
-            message: format!(
-                "Successfully wrote {} bytes to {}",
-                input.content.len(),
-                input.path
-            ),
+            message: format!("Successfully wrote {} bytes to {}", input.content.len(), input.path),
         })
     })
     .await
@@ -109,10 +105,7 @@ mod tests {
         mock.add_file(Path::new("/test/cwd"), "");
         let cwd = test_cwd();
         let result = execute_write_with(
-            &WriteInput {
-                path: "new_file.txt".to_string(),
-                content: "hello world".to_string(),
-            },
+            &WriteInput { path: "new_file.txt".to_string(), content: "hello world".to_string() },
             &cwd,
             &mock,
         )
@@ -126,16 +119,10 @@ mod tests {
         let mut mock = MockFileSystem::new();
         mock.add_file(Path::new("/test/cwd"), "");
         let cwd = test_cwd();
-        let result = execute_write_with(
-            &WriteInput {
-                path: "empty.txt".to_string(),
-                content: String::new(),
-            },
-            &cwd,
-            &mock,
-        )
-        .await
-        .unwrap();
+        let result =
+            execute_write_with(&WriteInput { path: "empty.txt".to_string(), content: String::new() }, &cwd, &mock)
+                .await
+                .unwrap();
         assert!(result.message.contains("0 bytes"));
     }
 
@@ -145,10 +132,7 @@ mod tests {
         let mock = MockFileSystem::new();
         let cwd = test_cwd();
         let result = execute_write_with(
-            &WriteInput {
-                path: "deep/nested/file.txt".to_string(),
-                content: "data".to_string(),
-            },
+            &WriteInput { path: "deep/nested/file.txt".to_string(), content: "data".to_string() },
             &cwd,
             &mock,
         )

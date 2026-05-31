@@ -43,13 +43,7 @@ pub struct SessionManager {
 impl SessionManager {
     /// Create a new empty session manager with the given header.
     pub fn new(header: SessionHeader) -> Self {
-        Self {
-            header,
-            entries: Vec::new(),
-            by_id: HashMap::new(),
-            labels_by_id: HashMap::new(),
-            leaf_id: None,
-        }
+        Self { header, entries: Vec::new(), by_id: HashMap::new(), labels_by_id: HashMap::new(), leaf_id: None }
     }
 
     /// Create a session manager from existing entries.
@@ -168,10 +162,7 @@ impl SessionManager {
     ///
     /// Mirrors `getChildren()` in the TS source.
     pub fn get_children(&self, parent_id: &str) -> Vec<&SessionEntry> {
-        self.entries
-            .iter()
-            .filter(|e| e.parent_id() == Some(parent_id))
-            .collect()
+        self.entries.iter().filter(|e| e.parent_id() == Some(parent_id)).collect()
     }
 
     /// Build the session tree structure.
@@ -189,14 +180,8 @@ impl SessionManager {
         for entry in &self.entries {
             let label = self.labels_by_id.get(entry.id()).cloned();
             root_candidates.insert(entry.id().to_string());
-            node_map.insert(
-                entry.id().to_string(),
-                SessionTreeNode {
-                    entry: entry.clone(),
-                    children: Vec::new(),
-                    label,
-                },
-            );
+            node_map
+                .insert(entry.id().to_string(), SessionTreeNode { entry: entry.clone(), children: Vec::new(), label });
         }
 
         // Phase 2: Link children to parents.
@@ -225,10 +210,7 @@ impl SessionManager {
         }
 
         // Phase 3: Collect roots (everything still in root_candidates).
-        let mut roots: Vec<SessionTreeNode> = root_candidates
-            .iter()
-            .filter_map(|id| node_map.remove(id))
-            .collect();
+        let mut roots: Vec<SessionTreeNode> = root_candidates.iter().filter_map(|id| node_map.remove(id)).collect();
 
         sort_tree_nodes(&mut roots);
         roots
@@ -328,7 +310,11 @@ impl SessionManager {
     /// Append a label entry. Throws if `target_id` does not exist.
     ///
     /// Pass `None` or empty string to clear the label.
-    pub fn append_label(&mut self, target_id: impl Into<EntryId>, label: Option<&str>) -> Result<EntryId, SessionError> {
+    pub fn append_label(
+        &mut self,
+        target_id: impl Into<EntryId>,
+        label: Option<&str>,
+    ) -> Result<EntryId, SessionError> {
         let target_id = target_id.into();
         if !self.by_id.contains_key(&target_id) {
             return Err(SessionError::EntryNotFound(target_id));
@@ -443,11 +429,7 @@ impl SessionManager {
 
     /// Append a branch_summary entry at the current leaf position (without moving the leaf).
     /// This is a convenience wrapper for `branch_with_summary` that doesn't move the leaf first.
-    pub fn append_branch_summary(
-        &mut self,
-        from_id: impl Into<String>,
-        summary: impl Into<String>,
-    ) -> EntryId {
+    pub fn append_branch_summary(&mut self, from_id: impl Into<String>, summary: impl Into<String>) -> EntryId {
         let id = generate_entry_id(&self._existing_ids());
         let entry = SessionEntry::BranchSummary(BranchSummaryEntryData {
             id: id.clone(),
@@ -573,11 +555,7 @@ impl SessionManager {
             }
         }
 
-        SessionContext {
-            messages,
-            thinking_level,
-            model,
-        }
+        SessionContext { messages, thinking_level, model }
     }
 
     // ── Internal helpers ─────────────────────────────────────────────────
@@ -592,8 +570,7 @@ impl SessionManager {
             if let Some(ref l) = label.label {
                 let trimmed = l.trim();
                 if !trimmed.is_empty() {
-                    self.labels_by_id
-                        .insert(label.target_id.clone(), trimmed.to_string());
+                    self.labels_by_id.insert(label.target_id.clone(), trimmed.to_string());
                 } else {
                     self.labels_by_id.remove(&label.target_id);
                 }
@@ -627,10 +604,7 @@ fn append_entry_to_messages(entry: &SessionEntry, messages: &mut Vec<Message>) {
         }
         SessionEntry::BranchSummary(e) => {
             if !e.summary.is_empty() {
-                messages.push(Message::user_text(format!(
-                    "[Branch summary from {}] {}",
-                    e.from_id, e.summary
-                )));
+                messages.push(Message::user_text(format!("[Branch summary from {}] {}", e.from_id, e.summary)));
             }
         }
         SessionEntry::CustomMessage(e) => {
@@ -639,10 +613,7 @@ fn append_entry_to_messages(entry: &SessionEntry, messages: &mut Vec<Message>) {
                 serde_json::Value::String(s) => s.clone(),
                 _ => e.content.to_string(),
             };
-            messages.push(Message::user_text(format!(
-                "[{}] {}",
-                e.custom_type, text
-            )));
+            messages.push(Message::user_text(format!("[{}] {}", e.custom_type, text)));
         }
         _ => {
             // Compaction, ThinkingLevelChange, ModelChange, Label, Custom,
@@ -699,12 +670,7 @@ mod tests {
     use super::*;
     use pi_ai_core::types::ContentBlock;
 
-    fn make_msg_entry(
-        id: &str,
-        parent_id: Option<&str>,
-        text: &str,
-        role: &str,
-    ) -> SessionEntry {
+    fn make_msg_entry(id: &str, parent_id: Option<&str>, text: &str, role: &str) -> SessionEntry {
         SessionEntry::Message(MessageEntryData {
             id: id.to_string(),
             parent_id: parent_id.map(|s| s.to_string()),
@@ -741,7 +707,8 @@ mod tests {
         assert!(sm.is_empty());
 
         let m1 = sm.append_message(serde_json::json!({"role": "user", "content": [{"type": "text", "text": "hello"}]}));
-        let m2 = sm.append_message(serde_json::json!({"role": "assistant", "content": [{"type": "text", "text": "hi"}]}));
+        let m2 =
+            sm.append_message(serde_json::json!({"role": "assistant", "content": [{"type": "text", "text": "hi"}]}));
         let m3 = sm.append_message(serde_json::json!({"role": "user", "content": [{"type": "text", "text": "again"}]}));
 
         assert_eq!(sm.len(), 3);
@@ -888,7 +855,9 @@ mod tests {
         sm.append_message(serde_json::json!({"role": "user", "content": []}));
         sm.append_thinking_level_change("high");
         sm.append_model_change("anthropic", "claude-3-opus");
-        sm.append_message(serde_json::json!({"role": "assistant", "content": [], "provider": "anthropic", "model": "claude-3-opus"}));
+        sm.append_message(
+            serde_json::json!({"role": "assistant", "content": [], "provider": "anthropic", "model": "claude-3-opus"}),
+        );
 
         let ctx = sm.build_context();
         assert_eq!(ctx.thinking_level, "high");
@@ -899,14 +868,18 @@ mod tests {
     fn test_compaction_handling() {
         let mut sm = SessionManager::in_memory("/tmp");
 
-        let _m1 = sm.append_message(serde_json::json!({"role": "user", "content": [{"type": "text", "text": "first"}]}));
-        let m2 = sm.append_message(serde_json::json!({"role": "assistant", "content": [{"type": "text", "text": "second"}]}));
-        let _m3 = sm.append_message(serde_json::json!({"role": "user", "content": [{"type": "text", "text": "third"}]}));
+        let _m1 =
+            sm.append_message(serde_json::json!({"role": "user", "content": [{"type": "text", "text": "first"}]}));
+        let m2 = sm
+            .append_message(serde_json::json!({"role": "assistant", "content": [{"type": "text", "text": "second"}]}));
+        let _m3 =
+            sm.append_message(serde_json::json!({"role": "user", "content": [{"type": "text", "text": "third"}]}));
 
         // Compact from m2 onward
         sm.append_compaction("summarized", &m2, 100);
 
-        let _m4 = sm.append_message(serde_json::json!({"role": "assistant", "content": [{"type": "text", "text": "fourth"}]}));
+        let _m4 = sm
+            .append_message(serde_json::json!({"role": "assistant", "content": [{"type": "text", "text": "fourth"}]}));
 
         let ctx = sm.build_context();
         // Should have: compaction summary message (1), kept entries from m2 (2: m2, m3), post-compaction (1: m4) = 4 messages
@@ -1103,10 +1076,8 @@ mod tests {
     #[test]
     fn test_from_entries() {
         let header = SessionHeader::new("/tmp", "test-session".to_string());
-        let entries = vec![
-            make_msg_entry("a", None, "hello", "user"),
-            make_msg_entry("b", Some("a"), "world", "assistant"),
-        ];
+        let entries =
+            vec![make_msg_entry("a", None, "hello", "user"), make_msg_entry("b", Some("a"), "world", "assistant")];
 
         let sm = SessionManager::from_entries(header, entries);
         assert_eq!(sm.len(), 2);

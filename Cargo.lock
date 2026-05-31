@@ -2740,6 +2740,8 @@ dependencies = [
  "pi-oauth",
  "pi-provider-openai",
  "pi-tui-app",
+ "serde_json",
+ "tempfile",
  "tokio",
  "tracing",
  "tracing-subscriber",
@@ -2754,6 +2756,7 @@ dependencies = [
  "pi-ai-core",
  "serde",
  "serde_json",
+ "tempfile",
  "thiserror 2.0.18",
  "tokio",
  "tokio-stream",
@@ -2790,6 +2793,8 @@ dependencies = [
  "pi-model-catalog",
  "pi-provider-anthropic",
  "pi-provider-bedrock",
+ "pi-provider-google",
+ "pi-provider-mistral",
  "pi-provider-openai",
  "serde_json",
  "tokio",
@@ -2856,12 +2861,18 @@ name = "pi-modes"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "dirs",
  "pi-agent-core",
  "pi-ai-core",
+ "pi-cli",
+ "pi-core",
+ "pi-model-catalog",
  "serde",
  "serde_json",
+ "tempfile",
  "thiserror 2.0.18",
  "tokio",
+ "tokio-util",
  "tracing",
 ]
 
@@ -2973,6 +2984,7 @@ dependencies = [
 name = "pi-tui-app"
 version = "0.1.0"
 dependencies = [
+ "dirs",
  "notify",
  "pi-agent-core",
  "pi-ai-core",

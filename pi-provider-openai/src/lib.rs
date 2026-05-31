@@ -9,8 +9,8 @@
 use pi_ai_core::api_registry::ApiProvider;
 use pi_ai_core::event_stream::{AssistantMessageEventStream, EventStreamSender};
 use pi_ai_core::types::{
-    ContentBlock, Context, ImageSource, Message, MessageRole, Model, StreamError, StreamEvent,
-    StreamOptions, TextContent, ThinkingContent, ToolCallContent, ToolDefinition, Usage,
+    ContentBlock, Context, ImageSource, Message, MessageRole, Model, StreamError, StreamEvent, StreamOptions,
+    TextContent, ThinkingContent, ToolCallContent, ToolDefinition, Usage,
 };
 use serde::Deserialize;
 use std::collections::HashMap;
@@ -190,17 +190,13 @@ pub struct OpenAiCompletionsProvider {
 impl OpenAiCompletionsProvider {
     /// Create a new provider that targets the standard OpenAI API endpoint.
     pub fn new() -> Self {
-        Self {
-            base_url: OPENAI_CHAT_COMPLETIONS_URL.to_owned(),
-        }
+        Self { base_url: OPENAI_CHAT_COMPLETIONS_URL.to_owned() }
     }
 
     /// Create a provider with a custom base URL (useful for testing or
     /// OpenAI-compatible backends).
     pub fn with_base_url(base_url: impl Into<String>) -> Self {
-        Self {
-            base_url: base_url.into(),
-        }
+        Self { base_url: base_url.into() }
     }
 }
 
@@ -215,12 +211,7 @@ impl ApiProvider for OpenAiCompletionsProvider {
         "openai-completions"
     }
 
-    fn stream(
-        &self,
-        model: &Model,
-        context: Context,
-        options: StreamOptions,
-    ) -> AssistantMessageEventStream {
+    fn stream(&self, model: &Model, context: Context, options: StreamOptions) -> AssistantMessageEventStream {
         let (tx, rx) = AssistantMessageEventStream::new();
         let model = model.clone();
         let base_url = self.base_url.clone();
@@ -259,11 +250,8 @@ async fn process_stream(
     let body = build_request_body(model, &context, &options);
 
     // 3. Send the HTTP request.
-    let client = reqwest::Client::builder()
-        .timeout(std::time::Duration::from_secs(
-            options.timeout.unwrap_or(120),
-        ))
-        .build()?;
+    let client =
+        reqwest::Client::builder().timeout(std::time::Duration::from_secs(options.timeout.unwrap_or(120))).build()?;
 
     let response = client
         .post(base_url)
@@ -273,11 +261,7 @@ async fn process_stream(
         .send()
         .await
         .map_err(|e| {
-            emit_error(
-                &tx,
-                format!("HTTP request failed: {e}"),
-                Some("request_error".to_owned()),
-            );
+            emit_error(&tx, format!("HTTP request failed: {e}"), Some("request_error".to_owned()));
             e
         })?;
 
@@ -299,21 +283,14 @@ async fn process_stream(
     // 6. Process the SSE response body.
     let mut state = StreamState::default();
     if let Err(e) = process_sse_stream(&tx, response, &mut state).await {
-        emit_error(
-            &tx,
-            format!("SSE stream error: {e}"),
-            Some("stream_error".to_owned()),
-        );
+        emit_error(&tx, format!("SSE stream error: {e}"), Some("stream_error".to_owned()));
         return Ok(());
     }
 
     // 7. Emit the final Done event.
     let stop_reason = state.finish_reason.clone().unwrap_or_else(|| "stop".to_owned());
     let message = build_done_message(&state, model);
-    let _ = tx.send(StreamEvent::Done {
-        message: Some(message),
-        stop_reason: Some(stop_reason),
-    });
+    let _ = tx.send(StreamEvent::Done { message: Some(message), stop_reason: Some(stop_reason) });
 
     Ok(())
 }
@@ -343,20 +320,11 @@ async fn process_sse_stream(
         // Process as many complete lines as possible.
         // Process as many complete lines as possible.
         while let Some(newline_pos) = buffer.iter().position(|&b| b == b'\n') {
-
             // Extract the line (including the \n byte, which we'll remove).
             let raw_line: Vec<u8> = buffer.drain(..=newline_pos).collect();
             // Remove trailing \r if present (Windows line endings).
-            let line_bytes = if raw_line.ends_with(b"\n") {
-                &raw_line[..raw_line.len() - 1]
-            } else {
-                &raw_line
-            };
-            let line_bytes = if line_bytes.ends_with(b"\r") {
-                &line_bytes[..line_bytes.len() - 1]
-            } else {
-                line_bytes
-            };
+            let line_bytes = if raw_line.ends_with(b"\n") { &raw_line[..raw_line.len() - 1] } else { &raw_line };
+            let line_bytes = if line_bytes.ends_with(b"\r") { &line_bytes[..line_bytes.len() - 1] } else { line_bytes };
 
             let line_str = String::from_utf8_lossy(line_bytes);
 
@@ -395,11 +363,7 @@ async fn process_sse_stream(
 
 /// Process a single parsed [`Chunk`] and emit the corresponding
 /// [`StreamEvent`]s.
-fn process_chunk(
-    tx: &EventStreamSender<StreamEvent>,
-    chunk: Chunk,
-    state: &mut StreamState,
-) {
+fn process_chunk(tx: &EventStreamSender<StreamEvent>, chunk: Chunk, state: &mut StreamState) {
     // Track response metadata.
     if state.response_id.is_none() {
         state.response_id = chunk.id.clone();
@@ -452,9 +416,7 @@ fn handle_delta(tx: &EventStreamSender<StreamEvent>, delta: &Delta, state: &mut 
     if let Some(ref content) = delta.content {
         if !content.is_empty() {
             state.text.push_str(content);
-            let _ = tx.send(StreamEvent::TextDelta {
-                delta: content.clone(),
-            });
+            let _ = tx.send(StreamEvent::TextDelta { delta: content.clone() });
         }
     }
 
@@ -462,9 +424,7 @@ fn handle_delta(tx: &EventStreamSender<StreamEvent>, delta: &Delta, state: &mut 
     if let Some(reasoning) = delta.get_reasoning() {
         if !reasoning.is_empty() {
             state.thinking.push_str(reasoning);
-            let _ = tx.send(StreamEvent::ThinkingDelta {
-                delta: reasoning.to_owned(),
-            });
+            let _ = tx.send(StreamEvent::ThinkingDelta { delta: reasoning.to_owned() });
         }
     }
 
@@ -502,13 +462,9 @@ fn handle_delta(tx: &EventStreamSender<StreamEvent>, delta: &Delta, state: &mut 
                 None
             };
 
-            let emit_arguments = tc
-                .function
-                .as_ref()
-                .and_then(|f| f.arguments.clone())
-                .inspect(|args_delta| {
-                    builder.arguments.push_str(args_delta);
-                });
+            let emit_arguments = tc.function.as_ref().and_then(|f| f.arguments.clone()).inspect(|args_delta| {
+                builder.arguments.push_str(args_delta);
+            });
 
             if emit_id.is_some() || emit_name.is_some() || emit_arguments.is_some() {
                 let _ = tx.send(StreamEvent::ToolCallDelta {
@@ -532,24 +488,18 @@ fn build_done_message(state: &StreamState, _model: &Model) -> Message {
 
     // Add thinking block if we got reasoning content.
     if !state.thinking.is_empty() {
-        content.push(ContentBlock::Thinking(ThinkingContent {
-            thinking: state.thinking.clone(),
-            signature: None,
-        }));
+        content.push(ContentBlock::Thinking(ThinkingContent { thinking: state.thinking.clone(), signature: None }));
     }
 
     // Add text block.
-    content.push(ContentBlock::Text(TextContent {
-        text: state.text.clone(),
-    }));
+    content.push(ContentBlock::Text(TextContent { text: state.text.clone() }));
 
     // Add tool call blocks.
     for builder in state.tool_calls.values() {
-        let parsed_args: serde_json::Value =
-            serde_json::from_str(&builder.arguments).unwrap_or_else(|_| {
-                // If the accumulated arguments string is not valid JSON, wrap it as a raw string.
-                serde_json::Value::String(builder.arguments.clone())
-            });
+        let parsed_args: serde_json::Value = serde_json::from_str(&builder.arguments).unwrap_or_else(|_| {
+            // If the accumulated arguments string is not valid JSON, wrap it as a raw string.
+            serde_json::Value::String(builder.arguments.clone())
+        });
 
         content.push(ContentBlock::ToolCall(ToolCallContent {
             id: builder.id.clone().unwrap_or_default(),
@@ -697,11 +647,7 @@ fn convert_assistant_message(msg: &Message) -> Option<serde_json::Value> {
         return None;
     }
 
-    let content_value = if text.is_empty() {
-        serde_json::Value::Null
-    } else {
-        serde_json::Value::String(text)
-    };
+    let content_value = if text.is_empty() { serde_json::Value::Null } else { serde_json::Value::String(text) };
 
     let mut assistant_msg = serde_json::json!({
         "role": "assistant",
@@ -757,11 +703,7 @@ fn convert_tool_result_messages(msg: &Message) -> Vec<serde_json::Value> {
         .filter_map(|block| {
             if let ContentBlock::ToolResult(tr) = block {
                 let text = if tr.is_error {
-                    if let Some(ref error) = tr.error {
-                        format!("Error: {error}")
-                    } else {
-                        "Error".to_owned()
-                    }
+                    if let Some(ref error) = tr.error { format!("Error: {error}") } else { "Error".to_owned() }
                 } else if let Some(ref content) = tr.content {
                     extract_text(content)
                 } else {
@@ -818,26 +760,14 @@ fn parse_usage(raw: &ChunkUsage) -> Usage {
     let prompt_tokens = raw.prompt_tokens.unwrap_or(0);
     let completion_tokens = raw.completion_tokens.unwrap_or(0);
 
-    let reported_cached = raw
-        .prompt_tokens_details
-        .as_ref()
-        .and_then(|d| d.cached_tokens)
-        .or(raw.prompt_cache_hit_tokens)
-        .unwrap_or(0);
+    let reported_cached =
+        raw.prompt_tokens_details.as_ref().and_then(|d| d.cached_tokens).or(raw.prompt_cache_hit_tokens).unwrap_or(0);
 
-    let cache_write = raw
-        .prompt_tokens_details
-        .as_ref()
-        .and_then(|d| d.cache_write_tokens)
-        .unwrap_or(0);
+    let cache_write = raw.prompt_tokens_details.as_ref().and_then(|d| d.cache_write_tokens).unwrap_or(0);
 
     // Normalize: some providers report cached_tokens as (previous hits +
     // current writes). Deduplicate.
-    let cache_read = if cache_write > 0 {
-        reported_cached.saturating_sub(cache_write)
-    } else {
-        reported_cached
-    };
+    let cache_read = if cache_write > 0 { reported_cached.saturating_sub(cache_write) } else { reported_cached };
 
     let input = prompt_tokens.saturating_sub(cache_read + cache_write);
 
@@ -874,13 +804,7 @@ fn map_stop_reason(reason: &str) -> String {
 fn extract_text(content: &[ContentBlock]) -> String {
     content
         .iter()
-        .filter_map(|block| {
-            if let ContentBlock::Text(t) = block {
-                Some(t.text.as_str())
-            } else {
-                None
-            }
-        })
+        .filter_map(|block| if let ContentBlock::Text(t) = block { Some(t.text.as_str()) } else { None })
         .collect::<Vec<&str>>()
         .join("\n")
 }
@@ -906,11 +830,9 @@ fn resolve_api_key(options: &StreamOptions) -> Result<String, String> {
     }
     match std::env::var("OPENAI_API_KEY") {
         Ok(key) if !key.is_empty() => Ok(key),
-        _ => Err(
-            "OpenAI API key is required. Set the OPENAI_API_KEY environment \
+        _ => Err("OpenAI API key is required. Set the OPENAI_API_KEY environment \
              variable or pass `api_key` in `StreamOptions`."
-                .to_owned(),
-        ),
+            .to_owned()),
     }
 }
 
@@ -918,13 +840,7 @@ fn resolve_api_key(options: &StreamOptions) -> Result<String, String> {
 fn emit_error(tx: &EventStreamSender<StreamEvent>, message: impl Into<String>, code: Option<String>) {
     let msg: String = message.into();
     tracing::error!("{msg}");
-    let _ = tx.send(StreamEvent::Error {
-        error: StreamError {
-            message: msg,
-            code,
-            r#type: None,
-        },
-    });
+    let _ = tx.send(StreamEvent::Error { error: StreamError { message: msg, code, r#type: None } });
 }
 
 // ---------------------------------------------------------------------------
@@ -934,11 +850,11 @@ fn emit_error(tx: &EventStreamSender<StreamEvent>, message: impl Into<String>, c
 #[cfg(test)]
 mod tests {
     use super::*;
-    use serial_test::serial;
     use pi_ai_core::api_registry::{clear_api_providers, register_api_provider};
     use pi_ai_core::event_stream::collect_stream;
     use pi_ai_core::stream;
     use pi_ai_core::types::{ImageContent, ImageSource, KnownProvider, ToolCallContent, ToolResultContent};
+    use serial_test::serial;
     use wiremock::matchers::{method, path};
     use wiremock::{Mock, MockServer, ResponseTemplate};
 
@@ -968,8 +884,7 @@ mod tests {
     }
 
     async fn setup_provider(mock_server: &MockServer) {
-        let provider =
-            OpenAiCompletionsProvider::with_base_url(format!("{}/v1/chat/completions", mock_server.uri()));
+        let provider = OpenAiCompletionsProvider::with_base_url(format!("{}/v1/chat/completions", mock_server.uri()));
         clear_api_providers().await;
         register_api_provider(Box::new(provider)).await;
     }
@@ -981,7 +896,9 @@ mod tests {
         INIT.get_or_init(|| {
             // Only set if not already set (defensive for concurrent test threads)
             if std::env::var("OPENAI_API_KEY").is_err() {
-                unsafe { std::env::set_var("OPENAI_API_KEY", "sk-test-placeholder"); }
+                unsafe {
+                    std::env::set_var("OPENAI_API_KEY", "sk-test-placeholder");
+                }
             }
         });
     }
@@ -1000,9 +917,7 @@ mod tests {
         Mock::given(method("POST"))
             .and(path("/v1/chat/completions"))
             .respond_with(
-                ResponseTemplate::new(status)
-                    .set_body_string(body)
-                    .insert_header("content-type", "application/json"),
+                ResponseTemplate::new(status).set_body_string(body).insert_header("content-type", "application/json"),
             )
             .mount(mock_server)
             .await;
@@ -1013,7 +928,7 @@ mod tests {
     // ------------------------------------------------------------------
 
     #[serial]
-#[tokio::test]
+    #[tokio::test]
     async fn test_text_stream_single_chunk() {
         ensure_api_key();
         let mock = MockServer::start().await;
@@ -1030,19 +945,13 @@ mod tests {
         setup_provider(&mock).await;
 
         let model = test_model();
-        let context = Context {
-            messages: vec![Message::user_text("Hi")],
-            system_prompt: None,
-            model: None,
-            tools: vec![],
-        };
+        let context =
+            Context { messages: vec![Message::user_text("Hi")], system_prompt: None, model: None, tools: vec![] };
 
-        let stream = stream::stream(&model, context, StreamOptions {
-            api_key: Some("test-key".into()),
-            ..Default::default()
-        })
-            .await
-            .expect("stream() should return a stream");
+        let stream =
+            stream::stream(&model, context, StreamOptions { api_key: Some("test-key".into()), ..Default::default() })
+                .await
+                .expect("stream() should return a stream");
         let result = collect_stream(stream, &model).await.expect("collect should succeed");
 
         let text = extract_text(&result.message.content);
@@ -1051,7 +960,7 @@ mod tests {
     }
 
     #[serial]
-#[tokio::test]
+    #[tokio::test]
     async fn test_text_stream_multiple_chunks() {
         ensure_api_key();
         let mock = MockServer::start().await;
@@ -1070,19 +979,13 @@ mod tests {
         setup_provider(&mock).await;
 
         let model = test_model();
-        let context = Context {
-            messages: vec![Message::user_text("Say hi")],
-            system_prompt: None,
-            model: None,
-            tools: vec![],
-        };
+        let context =
+            Context { messages: vec![Message::user_text("Say hi")], system_prompt: None, model: None, tools: vec![] };
 
-        let stream = stream::stream(&model, context, StreamOptions {
-            api_key: Some("test-key".into()),
-            ..Default::default()
-        })
-            .await
-            .expect("stream() should return a stream");
+        let stream =
+            stream::stream(&model, context, StreamOptions { api_key: Some("test-key".into()), ..Default::default() })
+                .await
+                .expect("stream() should return a stream");
         let result = collect_stream(stream, &model).await.expect("collect should succeed");
 
         let text = extract_text(&result.message.content);
@@ -1090,7 +993,7 @@ mod tests {
     }
 
     #[serial]
-#[tokio::test]
+    #[tokio::test]
     async fn test_text_stream_with_system_prompt() {
         ensure_api_key();
         let mock = MockServer::start().await;
@@ -1114,12 +1017,10 @@ mod tests {
             tools: vec![],
         };
 
-        let stream = stream::stream(&model, context, StreamOptions {
-            api_key: Some("test-key".into()),
-            ..Default::default()
-        })
-            .await
-            .expect("stream() should return a stream");
+        let stream =
+            stream::stream(&model, context, StreamOptions { api_key: Some("test-key".into()), ..Default::default() })
+                .await
+                .expect("stream() should return a stream");
         let result = collect_stream(stream, &model).await.expect("collect should succeed");
 
         let text = extract_text(&result.message.content);
@@ -1131,7 +1032,7 @@ mod tests {
     // ------------------------------------------------------------------
 
     #[serial]
-#[tokio::test]
+    #[tokio::test]
     async fn test_text_stream_with_reasoning() {
         ensure_api_key();
         let mock = MockServer::start().await;
@@ -1157,12 +1058,10 @@ mod tests {
             tools: vec![],
         };
 
-        let stream = stream::stream(&model, context, StreamOptions {
-            api_key: Some("test-key".into()),
-            ..Default::default()
-        })
-            .await
-            .expect("stream() should return a stream");
+        let stream =
+            stream::stream(&model, context, StreamOptions { api_key: Some("test-key".into()), ..Default::default() })
+                .await
+                .expect("stream() should return a stream");
         let result = collect_stream(stream, &model).await.expect("collect should succeed");
 
         let message = &result.message;
@@ -1184,7 +1083,7 @@ mod tests {
     // ------------------------------------------------------------------
 
     #[serial]
-#[tokio::test]
+    #[tokio::test]
     async fn test_tool_call_streaming() {
         ensure_api_key();
         let mock = MockServer::start().await;
@@ -1217,12 +1116,10 @@ mod tests {
             }],
         };
 
-        let stream = stream::stream(&model, context, StreamOptions {
-            api_key: Some("test-key".into()),
-            ..Default::default()
-        })
-            .await
-            .expect("stream() should return a stream");
+        let stream =
+            stream::stream(&model, context, StreamOptions { api_key: Some("test-key".into()), ..Default::default() })
+                .await
+                .expect("stream() should return a stream");
         let result = collect_stream(stream, &model).await.expect("collect should succeed");
 
         // Done message should contain one ToolCall block.
@@ -1234,10 +1131,7 @@ mod tests {
             if let ContentBlock::ToolCall(tc) = block {
                 assert_eq!(tc.id, "call_1");
                 assert_eq!(tc.name, "get_weather");
-                assert_eq!(
-                    tc.arguments,
-                    serde_json::json!({"location": "NYC"})
-                );
+                assert_eq!(tc.arguments, serde_json::json!({"location": "NYC"}));
             }
         }
 
@@ -1249,7 +1143,7 @@ mod tests {
     // ------------------------------------------------------------------
 
     #[serial]
-#[tokio::test]
+    #[tokio::test]
     async fn test_usage_chunk() {
         ensure_api_key();
         let mock = MockServer::start().await;
@@ -1268,19 +1162,13 @@ mod tests {
         setup_provider(&mock).await;
 
         let model = test_model();
-        let context = Context {
-            messages: vec![Message::user_text("Hi")],
-            system_prompt: None,
-            model: None,
-            tools: vec![],
-        };
+        let context =
+            Context { messages: vec![Message::user_text("Hi")], system_prompt: None, model: None, tools: vec![] };
 
-        let stream = stream::stream(&model, context, StreamOptions {
-            api_key: Some("test-key".into()),
-            ..Default::default()
-        })
-            .await
-            .expect("stream() should return a stream");
+        let stream =
+            stream::stream(&model, context, StreamOptions { api_key: Some("test-key".into()), ..Default::default() })
+                .await
+                .expect("stream() should return a stream");
 
         // Collect events manually to check for the Usage event.
         use tokio_stream::StreamExt;
@@ -1311,36 +1199,30 @@ mod tests {
     // ------------------------------------------------------------------
 
     #[serial]
-#[tokio::test]
+    #[tokio::test]
     async fn test_api_key_error() {
         ensure_api_key();
         // No API key set, no options key — should produce an Error event.
         let model = test_model();
-        let context = Context {
-            messages: vec![Message::user_text("Hi")],
-            system_prompt: None,
-            model: None,
-            tools: vec![],
-        };
+        let context =
+            Context { messages: vec![Message::user_text("Hi")], system_prompt: None, model: None, tools: vec![] };
 
         // Use a provider with no API key — should error on first HTTP request.
         let provider = OpenAiCompletionsProvider::with_base_url("http://0.0.0.0:1/v1/chat/completions");
         clear_api_providers().await;
         register_api_provider(Box::new(provider)).await;
 
-        let stream = stream::stream(&model, context, StreamOptions {
-            api_key: Some(String::new()),
-            ..Default::default()
-        })
-            .await
-            .expect("stream() should return a stream");
+        let stream =
+            stream::stream(&model, context, StreamOptions { api_key: Some(String::new()), ..Default::default() })
+                .await
+                .expect("stream() should return a stream");
         let result = collect_stream(stream, &model).await;
 
         assert!(result.is_err(), "Expected an error with empty API key");
     }
 
     #[serial]
-#[tokio::test]
+    #[tokio::test]
     async fn test_http_error() {
         ensure_api_key();
         let mock = MockServer::start().await;
@@ -1348,26 +1230,20 @@ mod tests {
         setup_provider(&mock).await;
 
         let model = test_model();
-        let context = Context {
-            messages: vec![Message::user_text("Hi")],
-            system_prompt: None,
-            model: None,
-            tools: vec![],
-        };
+        let context =
+            Context { messages: vec![Message::user_text("Hi")], system_prompt: None, model: None, tools: vec![] };
 
-        let stream = stream::stream(&model, context, StreamOptions {
-            api_key: Some("test-key".into()),
-            ..Default::default()
-        })
-            .await
-            .expect("stream() should return a stream");
+        let stream =
+            stream::stream(&model, context, StreamOptions { api_key: Some("test-key".into()), ..Default::default() })
+                .await
+                .expect("stream() should return a stream");
         let result = collect_stream(stream, &model).await;
 
         assert!(result.is_err(), "Expected an error for HTTP 401");
     }
 
     #[serial]
-#[tokio::test]
+    #[tokio::test]
     async fn test_invalid_sse_chunk_is_skipped() {
         ensure_api_key();
         let mock = MockServer::start().await;
@@ -1388,19 +1264,13 @@ mod tests {
         setup_provider(&mock).await;
 
         let model = test_model();
-        let context = Context {
-            messages: vec![Message::user_text("Hi")],
-            system_prompt: None,
-            model: None,
-            tools: vec![],
-        };
+        let context =
+            Context { messages: vec![Message::user_text("Hi")], system_prompt: None, model: None, tools: vec![] };
 
-        let stream = stream::stream(&model, context, StreamOptions {
-            api_key: Some("test-key".into()),
-            ..Default::default()
-        })
-            .await
-            .expect("stream() should return a stream");
+        let stream =
+            stream::stream(&model, context, StreamOptions { api_key: Some("test-key".into()), ..Default::default() })
+                .await
+                .expect("stream() should return a stream");
         let result = collect_stream(stream, &model).await.expect("collect should succeed");
 
         let text = extract_text(&result.message.content);
@@ -1413,12 +1283,8 @@ mod tests {
 
     #[test]
     fn test_convert_user_message_text_only() {
-        let context = Context {
-            messages: vec![Message::user_text("Hello")],
-            system_prompt: None,
-            model: None,
-            tools: vec![],
-        };
+        let context =
+            Context { messages: vec![Message::user_text("Hello")], system_prompt: None, model: None, tools: vec![] };
         let messages = convert_messages(&context);
         assert_eq!(messages.len(), 1);
         assert_eq!(messages[0]["role"], "user");
@@ -1431,9 +1297,7 @@ mod tests {
         let msg = Message {
             role: MessageRole::User,
             content: vec![
-                ContentBlock::Text(TextContent {
-                    text: "What's in this image?".into(),
-                }),
+                ContentBlock::Text(TextContent { text: "What's in this image?".into() }),
                 ContentBlock::Image(ImageContent {
                     source: ImageSource::Base64 {
                         media_type: "image/png".into(),
@@ -1446,12 +1310,7 @@ mod tests {
             usage: None,
             redacted: false,
         };
-        let context = Context {
-            messages: vec![msg],
-            system_prompt: None,
-            model: None,
-            tools: vec![],
-        };
+        let context = Context { messages: vec![msg], system_prompt: None, model: None, tools: vec![] };
         let messages = convert_messages(&context);
         assert_eq!(messages.len(), 1);
 
@@ -1459,12 +1318,7 @@ mod tests {
         assert_eq!(content.len(), 2);
         assert_eq!(content[0]["type"], "text");
         assert_eq!(content[1]["type"], "image_url");
-        assert!(
-            content[1]["image_url"]["url"]
-                .as_str()
-                .unwrap()
-                .starts_with("data:image/png;base64,")
-        );
+        assert!(content[1]["image_url"]["url"].as_str().unwrap().starts_with("data:image/png;base64,"));
     }
 
     #[test]
@@ -1472,9 +1326,7 @@ mod tests {
         let msg = Message {
             role: MessageRole::Assistant,
             content: vec![
-                ContentBlock::Text(TextContent {
-                    text: "I'll look that up.".into(),
-                }),
+                ContentBlock::Text(TextContent { text: "I'll look that up.".into() }),
                 ContentBlock::ToolCall(ToolCallContent {
                     id: "call_abc".into(),
                     name: "search_web".into(),
@@ -1486,12 +1338,7 @@ mod tests {
             usage: None,
             redacted: false,
         };
-        let context = Context {
-            messages: vec![msg],
-            system_prompt: None,
-            model: None,
-            tools: vec![],
-        };
+        let context = Context { messages: vec![msg], system_prompt: None, model: None, tools: vec![] };
         let messages = convert_messages(&context);
         assert_eq!(messages.len(), 1);
 
@@ -1511,9 +1358,7 @@ mod tests {
             content: vec![ContentBlock::ToolResult(ToolResultContent {
                 id: "call_def".into(),
                 name: "get_time".into(),
-                content: Some(vec![ContentBlock::Text(TextContent {
-                    text: "12:00 PM".into(),
-                })]),
+                content: Some(vec![ContentBlock::Text(TextContent { text: "12:00 PM".into() })]),
                 error: None,
                 is_error: false,
             })],
@@ -1522,12 +1367,7 @@ mod tests {
             usage: None,
             redacted: false,
         };
-        let context = Context {
-            messages: vec![msg],
-            system_prompt: None,
-            model: None,
-            tools: vec![],
-        };
+        let context = Context { messages: vec![msg], system_prompt: None, model: None, tools: vec![] };
         let messages = convert_messages(&context);
         assert_eq!(messages.len(), 1);
 
@@ -1552,12 +1392,7 @@ mod tests {
             usage: None,
             redacted: false,
         };
-        let context = Context {
-            messages: vec![msg],
-            system_prompt: None,
-            model: None,
-            tools: vec![],
-        };
+        let context = Context { messages: vec![msg], system_prompt: None, model: None, tools: vec![] };
         let messages = convert_messages(&context);
         assert_eq!(messages.len(), 1);
 
@@ -1616,10 +1451,7 @@ mod tests {
             prompt_tokens: Some(200),
             completion_tokens: Some(30),
             total_tokens: Some(230),
-            prompt_tokens_details: Some(PromptTokensDetails {
-                cached_tokens: Some(50),
-                cache_write_tokens: Some(10),
-            }),
+            prompt_tokens_details: Some(PromptTokensDetails { cached_tokens: Some(50), cache_write_tokens: Some(10) }),
             prompt_cache_hit_tokens: None,
         };
         let usage = parse_usage(&raw);
@@ -1649,5 +1481,4 @@ mod tests {
     // ------------------------------------------------------------------
     // Cleanup for env-var-dependent tests
     // ------------------------------------------------------------------
-
 }

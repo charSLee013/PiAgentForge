@@ -1,9 +1,9 @@
 //! Ls tool — list directory contents.
 //! Mirrors `packages/coding-agent/src/core/tools/ls.ts`
 
-use crate::io::{DefaultFileSystem, FileSystem, DirEntry, IoError};
+use crate::io::{DefaultFileSystem, DirEntry, FileSystem, IoError};
 use crate::tools::path_utils::resolve_to_cwd;
-use crate::tools::truncate::{self, format_size, TruncationOptions, TruncationResult, DEFAULT_MAX_BYTES};
+use crate::tools::truncate::{self, DEFAULT_MAX_BYTES, TruncationOptions, TruncationResult, format_size};
 use std::path::Path;
 
 // ---------------------------------------------------------------------------
@@ -75,11 +75,7 @@ pub async fn execute_ls(input: &LsInput, cwd: &Path) -> Result<LsResult, LsError
 }
 
 /// List directory contents with a custom filesystem (for testing).
-pub async fn execute_ls_with(
-    input: &LsInput,
-    cwd: &Path,
-    fs: &dyn FileSystem,
-) -> Result<LsResult, LsError> {
+pub async fn execute_ls_with(input: &LsInput, cwd: &Path, fs: &dyn FileSystem) -> Result<LsResult, LsError> {
     let dir_path = resolve_to_cwd(input.path.as_deref().unwrap_or("."), cwd);
 
     tracing::debug!(dir = %dir_path.display(), "ls::execute");
@@ -122,36 +118,21 @@ pub async fn execute_ls_with(
     }
 
     if results.is_empty() {
-        return Ok(LsResult {
-            output: "(empty directory)".to_string(),
-            truncation: None,
-            entry_limit_reached: None,
-        });
+        return Ok(LsResult { output: "(empty directory)".to_string(), truncation: None, entry_limit_reached: None });
     }
 
     let raw_output = results.join("\n");
 
     // Apply byte truncation.
-    let trunc_opts = TruncationOptions {
-        max_lines: usize::MAX,
-        max_bytes: DEFAULT_MAX_BYTES,
-    };
+    let trunc_opts = TruncationOptions { max_lines: usize::MAX, max_bytes: DEFAULT_MAX_BYTES };
     let trunc = truncate::truncate_head(&raw_output, trunc_opts);
 
     let mut final_output = trunc.content.clone();
-    let details_truncation: Option<TruncationResult> = if trunc.truncated {
-        Some(trunc)
-    } else {
-        None
-    };
+    let details_truncation: Option<TruncationResult> = if trunc.truncated { Some(trunc) } else { None };
 
     let mut notices: Vec<String> = Vec::new();
     if entry_limit_reached {
-        notices.push(format!(
-            "{} entries limit reached. Use limit={} for more",
-            effective_limit,
-            effective_limit * 2
-        ));
+        notices.push(format!("{} entries limit reached. Use limit={} for more", effective_limit, effective_limit * 2));
     }
     if details_truncation.is_some() {
         notices.push(format!("{} limit reached", format_size(DEFAULT_MAX_BYTES)));
@@ -163,11 +144,7 @@ pub async fn execute_ls_with(
     Ok(LsResult {
         output: final_output,
         truncation: details_truncation,
-        entry_limit_reached: if entry_limit_reached {
-            Some(effective_limit)
-        } else {
-            None
-        },
+        entry_limit_reached: if entry_limit_reached { Some(effective_limit) } else { None },
     })
 }
 
@@ -189,15 +166,8 @@ mod tests {
     async fn test_ls_not_found() {
         let mock = MockFileSystem::new();
         let cwd = test_cwd();
-        let result = execute_ls_with(
-            &LsInput {
-                path: Some("/nonexistent".to_string()),
-                limit: None,
-            },
-            &cwd,
-            &mock,
-        )
-        .await;
+        let result =
+            execute_ls_with(&LsInput { path: Some("/nonexistent".to_string()), limit: None }, &cwd, &mock).await;
         assert!(result.is_err());
     }
 
@@ -211,16 +181,7 @@ mod tests {
         fs.write(&dir_path.join("a.txt"), b"aaa").await.unwrap();
         fs.write(&dir_path.join("b.txt"), b"bbb").await.unwrap();
 
-        let result = execute_ls_with(
-            &LsInput {
-                path: None,
-                limit: None,
-            },
-            &dir_path,
-            &fs,
-        )
-        .await
-        .unwrap();
+        let result = execute_ls_with(&LsInput { path: None, limit: None }, &dir_path, &fs).await.unwrap();
 
         assert!(result.output.contains("a.txt"));
         assert!(result.output.contains("b.txt"));
@@ -229,15 +190,7 @@ mod tests {
     #[tokio::test]
     async fn test_ls_empty_dir() {
         let dir = tempfile::tempdir().unwrap();
-        let result = execute_ls(
-            &LsInput {
-                path: None,
-                limit: None,
-            },
-            dir.path(),
-        )
-        .await
-        .unwrap();
+        let result = execute_ls(&LsInput { path: None, limit: None }, dir.path()).await.unwrap();
         assert_eq!(result.output, "(empty directory)");
     }
 }

@@ -4,7 +4,7 @@
 //! LLM responses. Mirrors packages/ai/src/stream.ts
 
 use crate::api_registry::with_provider;
-use crate::event_stream::{collect_stream, AssistantMessageEventStream};
+use crate::event_stream::{AssistantMessageEventStream, collect_stream};
 use crate::types::{Context, Model, StreamOptions, StreamResult};
 use thiserror::Error;
 
@@ -35,9 +35,7 @@ pub async fn stream(
 ) -> Result<AssistantMessageEventStream, StreamError> {
     let api_id = &model.api;
 
-    let result = with_provider(api_id, |provider| {
-        provider.stream(model, context, options)
-    }).await;
+    let result = with_provider(api_id, |provider| provider.stream(model, context, options)).await;
 
     result.ok_or_else(|| StreamError::NoProvider(api_id.clone()))
 }
@@ -45,11 +43,7 @@ pub async fn stream(
 /// Stream a response and collect all events into a final `StreamResult`.
 ///
 /// This is the Rust equivalent of the TypeScript `complete()` function.
-pub async fn complete(
-    model: &Model,
-    context: Context,
-    options: StreamOptions,
-) -> Result<StreamResult, StreamError> {
+pub async fn complete(model: &Model, context: Context, options: StreamOptions) -> Result<StreamResult, StreamError> {
     let event_stream = stream(model, context, options).await?;
     collect_stream(event_stream, model).await.map_err(StreamError::ProviderError)
 }
@@ -57,27 +51,21 @@ pub async fn complete(
 /// Stream a response using the simple (default-options) interface.
 ///
 /// Mirrors `streamSimple` in TypeScript.
-pub async fn stream_simple(
-    model: &Model,
-    context: Context,
-) -> Result<AssistantMessageEventStream, StreamError> {
+pub async fn stream_simple(model: &Model, context: Context) -> Result<AssistantMessageEventStream, StreamError> {
     stream(model, context, StreamOptions::default()).await
 }
 
 /// Complete a response using the simple (default-options) interface.
 ///
 /// Mirrors `completeSimple` in TypeScript.
-pub async fn complete_simple(
-    model: &Model,
-    context: Context,
-) -> Result<StreamResult, StreamError> {
+pub async fn complete_simple(model: &Model, context: Context) -> Result<StreamResult, StreamError> {
     complete(model, context, StreamOptions::default()).await
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::api_registry::{clear_api_providers, register_api_provider, ApiProvider};
+    use crate::api_registry::{ApiProvider, clear_api_providers, register_api_provider};
     use crate::event_stream::EventStream;
     use crate::types::{KnownProvider, Message, StreamEvent};
 
@@ -92,13 +80,8 @@ mod tests {
         fn stream(&self, _model: &Model, _context: Context, _options: StreamOptions) -> AssistantMessageEventStream {
             let (tx, rx) = EventStream::new();
             let _ = tx.send(StreamEvent::Start);
-            let _ = tx.send(StreamEvent::TextDelta {
-                delta: "Hello, world!".into(),
-            });
-            let _ = tx.send(StreamEvent::Done {
-                message: None,
-                stop_reason: Some("end_turn".into()),
-            });
+            let _ = tx.send(StreamEvent::TextDelta { delta: "Hello, world!".into() });
+            let _ = tx.send(StreamEvent::Done { message: None, stop_reason: Some("end_turn".into()) });
             drop(tx);
             rx
         }
@@ -126,12 +109,7 @@ mod tests {
     }
 
     fn test_context() -> Context {
-        Context {
-            messages: vec![Message::user_text("hello")],
-            system_prompt: None,
-            model: None,
-            tools: vec![],
-        }
+        Context { messages: vec![Message::user_text("hello")], system_prompt: None, model: None, tools: vec![] }
     }
 
     #[tokio::test]

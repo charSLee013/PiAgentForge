@@ -2,7 +2,7 @@
 //! Mirrors `packages/coding-agent/src/core/tools/bash.ts`
 
 use crate::io::{DefaultShell, IoError, Shell, ShellOutput};
-use crate::tools::truncate::{self, TruncationResult, TruncationOptions, DEFAULT_MAX_LINES, DEFAULT_MAX_BYTES};
+use crate::tools::truncate::{self, DEFAULT_MAX_BYTES, DEFAULT_MAX_LINES, TruncationOptions, TruncationResult};
 use std::time::Duration;
 use tokio_util::sync::CancellationToken;
 
@@ -69,10 +69,7 @@ impl From<IoError> for BashError {
 // ---------------------------------------------------------------------------
 
 /// Execute a bash command using the default shell.
-pub async fn execute_bash(
-    input: &BashInput,
-    cancel: CancellationToken,
-) -> Result<BashResult, BashError> {
+pub async fn execute_bash(input: &BashInput, cancel: CancellationToken) -> Result<BashResult, BashError> {
     let shell = DefaultShell;
     execute_bash_with(input, &shell, cancel).await
 }
@@ -92,11 +89,7 @@ pub async fn execute_bash_with(
     // Convert u64 seconds to Duration.
     let timeout_dur = input.timeout.map(Duration::from_secs);
 
-    let ShellOutput {
-        exit_code,
-        stdout,
-        stderr,
-    } = shell.execute(&input.command, timeout_dur, cancel).await?;
+    let ShellOutput { exit_code, stdout, stderr } = shell.execute(&input.command, timeout_dur, cancel).await?;
 
     // Combine stdout and stderr (matching TS behavior: both go to onData).
     let combined = if stderr.is_empty() {
@@ -108,10 +101,7 @@ pub async fn execute_bash_with(
     };
 
     // Apply tail truncation (bash shows the end of output).
-    let trunc_opts = TruncationOptions {
-        max_lines: DEFAULT_MAX_LINES,
-        max_bytes: DEFAULT_MAX_BYTES,
-    };
+    let trunc_opts = TruncationOptions { max_lines: DEFAULT_MAX_LINES, max_bytes: DEFAULT_MAX_BYTES };
     let trunc = truncate::truncate_tail(&combined, trunc_opts);
     let output = if trunc.truncated { trunc.content.clone() } else { combined.clone() };
 
@@ -129,11 +119,7 @@ pub async fn execute_bash_with(
 
 /// Combine the output text with an error status suffix (matching TS appendStatus).
 pub fn append_status(text: &str, status: &str) -> String {
-    if text.is_empty() {
-        status.to_string()
-    } else {
-        format!("{}\n\n{}", text, status)
-    }
+    if text.is_empty() { status.to_string() } else { format!("{}\n\n{}", text, status) }
 }
 
 // ---------------------------------------------------------------------------
@@ -147,15 +133,10 @@ mod tests {
 
     #[tokio::test]
     async fn test_bash_success() {
-        let result = execute_bash(
-            &BashInput {
-                command: "echo hello".to_string(),
-                timeout: None,
-            },
-            CancellationToken::new(),
-        )
-        .await
-        .unwrap();
+        let result =
+            execute_bash(&BashInput { command: "echo hello".to_string(), timeout: None }, CancellationToken::new())
+                .await
+                .unwrap();
         assert_eq!(result.exit_code, 0);
         assert!(result.output.contains("hello"));
         assert!(!result.truncated);
@@ -163,14 +144,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_bash_error_exit() {
-        let result = execute_bash(
-            &BashInput {
-                command: "exit 42".to_string(),
-                timeout: None,
-            },
-            CancellationToken::new(),
-        )
-        .await;
+        let result =
+            execute_bash(&BashInput { command: "exit 42".to_string(), timeout: None }, CancellationToken::new()).await;
         // Non-zero exit is not an error in the tool — it still returns Ok
         assert!(result.is_ok());
         assert_eq!(result.unwrap().exit_code, 42);
@@ -178,14 +153,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_bash_timeout() {
-        let result = execute_bash(
-            &BashInput {
-                command: "sleep 10".to_string(),
-                timeout: Some(1),
-            },
-            CancellationToken::new(),
-        )
-        .await;
+        let result =
+            execute_bash(&BashInput { command: "sleep 10".to_string(), timeout: Some(1) }, CancellationToken::new())
+                .await;
         assert!(result.is_err());
         // The timeout may surface as Io(TimedOut) because DefaultShell converts
         // it before BashError can wrap it as Timeout.
@@ -204,14 +174,7 @@ mod tests {
             tokio::time::sleep(Duration::from_millis(50)).await;
             cancel_clone.cancel();
         });
-        let result = execute_bash(
-            &BashInput {
-                command: "sleep 10".to_string(),
-                timeout: None,
-            },
-            cancel,
-        )
-        .await;
+        let result = execute_bash(&BashInput { command: "sleep 10".to_string(), timeout: None }, cancel).await;
         assert!(result.is_err());
         match result.unwrap_err() {
             BashError::Aborted => {} // expected
@@ -223,16 +186,9 @@ mod tests {
     async fn test_bash_with_mock_shell() {
         let mock = MockShell::new();
         let cancel = CancellationToken::new();
-        let result = execute_bash_with(
-            &BashInput {
-                command: "anything".to_string(),
-                timeout: None,
-            },
-            &mock,
-            cancel,
-        )
-        .await
-        .unwrap();
+        let result = execute_bash_with(&BashInput { command: "anything".to_string(), timeout: None }, &mock, cancel)
+            .await
+            .unwrap();
         assert_eq!(result.exit_code, 0);
         assert_eq!(result.output, "mock output");
     }
@@ -240,10 +196,7 @@ mod tests {
     #[tokio::test]
     async fn test_bash_stderr() {
         let result = execute_bash(
-            &BashInput {
-                command: "echo stderr_output >&2".to_string(),
-                timeout: None,
-            },
+            &BashInput { command: "echo stderr_output >&2".to_string(), timeout: None },
             CancellationToken::new(),
         )
         .await

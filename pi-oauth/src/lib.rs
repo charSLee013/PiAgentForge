@@ -170,20 +170,14 @@ pub enum OAuthError {
 const LOGO_SVG: &str = r##"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 800" aria-hidden="true"><path fill="#fff" fill-rule="evenodd" d="M165.29 165.29 H517.36 V400 H400 V517.36 H282.65 V634.72 H165.29 Z M282.65 282.65 V400 H400 V282.65 Z"/><path fill="#fff" d="M517.36 400 H634.72 V634.72 H517.36 Z"/></svg>"##;
 
 fn escape_html(s: &str) -> String {
-    s.replace('&', "&amp;")
-        .replace('<', "&lt;")
-        .replace('>', "&gt;")
-        .replace('"', "&quot;")
-        .replace('\'', "&#39;")
+    s.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;").replace('"', "&quot;").replace('\'', "&#39;")
 }
 
 fn render_html_page(title: &str, heading: &str, message: &str, details: Option<&str>) -> String {
     let title_esc = escape_html(title);
     let heading_esc = escape_html(heading);
     let message_esc = escape_html(message);
-    let details_html = details
-        .map(|d| format!(r#"<div class="details">{}</div>"#, escape_html(d)))
-        .unwrap_or_default();
+    let details_html = details.map(|d| format!(r#"<div class="details">{}</div>"#, escape_html(d))).unwrap_or_default();
 
     format!(
         r#"<!doctype html>
@@ -293,10 +287,7 @@ impl CallbackServer {
         let listener = TcpListener::bind(&addr).await?;
         let actual_port = listener.local_addr()?.port();
         tracing::debug!("Callback server listening on 127.0.0.1:{}", actual_port);
-        Ok(Self {
-            listener,
-            port: actual_port,
-        })
+        Ok(Self { listener, port: actual_port })
     }
 
     /// Wait for a single HTTP request at the callback path, validate state,
@@ -335,9 +326,8 @@ impl CallbackServer {
 
         // Build a full URL so we can parse query params
         let full_url = format!("http://localhost:{}{}", self.port, path_and_query);
-        let parsed_url = Url::parse(&full_url).map_err(|e| {
-            OAuthError::Other(format!("{}: failed to parse callback URL: {}", error_prefix, e))
-        })?;
+        let parsed_url = Url::parse(&full_url)
+            .map_err(|e| OAuthError::Other(format!("{}: failed to parse callback URL: {}", error_prefix, e)))?;
 
         // Validate the path
         if parsed_url.path() != callback_path {
@@ -353,10 +343,7 @@ impl CallbackServer {
         // Check for OAuth error
         if let Some(err) = parsed_url.query_pairs().find(|(k, _)| k == "error") {
             let err_desc = err.1.to_string();
-            let html = oauth_error_html(
-                "Authentication did not complete.",
-                Some(&format!("Error: {}", err_desc)),
-            );
+            let html = oauth_error_html("Authentication did not complete.", Some(&format!("Error: {}", err_desc)));
             Self::send_html_response(&mut stream, 400, &html).await?;
             return Err(OAuthError::Other(format!("{}: auth error: {}", error_prefix, err_desc)));
         }
@@ -366,18 +353,14 @@ impl CallbackServer {
             .query_pairs()
             .find(|(k, _)| k == "code")
             .map(|(_, v)| v.into_owned())
-            .ok_or_else(|| {
-                OAuthError::Other(format!("{}: missing authorization code", error_prefix))
-            })?;
+            .ok_or_else(|| OAuthError::Other(format!("{}: missing authorization code", error_prefix)))?;
 
         // Extract state
         let state = parsed_url
             .query_pairs()
             .find(|(k, _)| k == "state")
             .map(|(_, v)| v.into_owned())
-            .ok_or_else(|| {
-                OAuthError::Other(format!("{}: missing state parameter", error_prefix))
-            })?;
+            .ok_or_else(|| OAuthError::Other(format!("{}: missing state parameter", error_prefix)))?;
 
         // Validate state
         if state != expected_state {
@@ -434,24 +417,14 @@ struct ParsedCode {
 fn parse_authorization_input(input: &str) -> ParsedCode {
     let value = input.trim();
     if value.is_empty() {
-        return ParsedCode {
-            code: String::new(),
-            state: None,
-        };
+        return ParsedCode { code: String::new(), state: None };
     }
 
     // Try parsing as URL
     if let Ok(url) = Url::parse(value) {
         return ParsedCode {
-            code: url
-                .query_pairs()
-                .find(|(k, _)| k == "code")
-                .map(|(_, v)| v.into_owned())
-                .unwrap_or_default(),
-            state: url
-                .query_pairs()
-                .find(|(k, _)| k == "state")
-                .map(|(_, v)| v.into_owned()),
+            code: url.query_pairs().find(|(k, _)| k == "code").map(|(_, v)| v.into_owned()).unwrap_or_default(),
+            state: url.query_pairs().find(|(k, _)| k == "state").map(|(_, v)| v.into_owned()),
         };
     }
 
@@ -460,10 +433,7 @@ fn parse_authorization_input(input: &str) -> ParsedCode {
         let c = &value[..hash_pos];
         let s = &value[hash_pos + 1..];
         if !c.is_empty() {
-            return ParsedCode {
-                code: c.to_string(),
-                state: Some(s.to_string()),
-            };
+            return ParsedCode { code: c.to_string(), state: Some(s.to_string()) };
         }
     }
 
@@ -471,24 +441,14 @@ fn parse_authorization_input(input: &str) -> ParsedCode {
     if value.contains("code=") {
         if let Ok(url) = Url::parse(&format!("http://localhost?{}", value)) {
             return ParsedCode {
-                code: url
-                    .query_pairs()
-                    .find(|(k, _)| k == "code")
-                    .map(|(_, v)| v.into_owned())
-                    .unwrap_or_default(),
-                state: url
-                    .query_pairs()
-                    .find(|(k, _)| k == "state")
-                    .map(|(_, v)| v.into_owned()),
+                code: url.query_pairs().find(|(k, _)| k == "code").map(|(_, v)| v.into_owned()).unwrap_or_default(),
+                state: url.query_pairs().find(|(k, _)| k == "state").map(|(_, v)| v.into_owned()),
             };
         }
     }
 
     // Treat the entire value as just the code
-    ParsedCode {
-        code: value.to_string(),
-        state: None,
-    }
+    ParsedCode { code: value.to_string(), state: None }
 }
 
 // ---------------------------------------------------------------------------
@@ -539,10 +499,7 @@ fn http_client() -> reqwest::Client {
     reqwest::Client::new()
 }
 
-async fn post_json(
-    url: &str,
-    body: &serde_json::Value,
-) -> Result<String, OAuthError> {
+async fn post_json(url: &str, body: &serde_json::Value) -> Result<String, OAuthError> {
     let client = http_client();
     let response = client
         .post(url)
@@ -557,21 +514,13 @@ async fn post_json(
     let response_body = response.text().await?;
 
     if !status.is_success() {
-        return Err(OAuthError::TokenExchange(format!(
-            "HTTP {} from {}: {}",
-            status.as_u16(),
-            url,
-            response_body
-        )));
+        return Err(OAuthError::TokenExchange(format!("HTTP {} from {}: {}", status.as_u16(), url, response_body)));
     }
 
     Ok(response_body)
 }
 
-async fn post_form(
-    url: &str,
-    body: &[(&str, &str)],
-) -> Result<String, OAuthError> {
+async fn post_form(url: &str, body: &[(&str, &str)]) -> Result<String, OAuthError> {
     let client = http_client();
     let response = client
         .post(url)
@@ -585,12 +534,7 @@ async fn post_form(
     let response_body = response.text().await?;
 
     if !status.is_success() {
-        return Err(OAuthError::TokenExchange(format!(
-            "HTTP {} from {}: {}",
-            status.as_u16(),
-            url,
-            response_body
-        )));
+        return Err(OAuthError::TokenExchange(format!("HTTP {} from {}: {}", status.as_u16(), url, response_body)));
     }
 
     Ok(response_body)
@@ -602,21 +546,13 @@ async fn get_json(url: &str, headers: &[(&str, &str)]) -> Result<String, OAuthEr
     for (k, v) in headers {
         req = req.header(*k, *v);
     }
-    let response = req
-        .timeout(Duration::from_secs(30))
-        .send()
-        .await?;
+    let response = req.timeout(Duration::from_secs(30)).send().await?;
 
     let status = response.status();
     let response_body = response.text().await?;
 
     if !status.is_success() {
-        return Err(OAuthError::TokenExchange(format!(
-            "HTTP {} from {}: {}",
-            status.as_u16(),
-            url,
-            response_body
-        )));
+        return Err(OAuthError::TokenExchange(format!("HTTP {} from {}: {}", status.as_u16(), url, response_body)));
     }
 
     Ok(response_body)
@@ -640,12 +576,7 @@ async fn resolve_authorization_code(
     let manual_fut = callbacks.on_manual_code_input();
     tokio::pin!(manual_fut);
 
-    let cb_fut = server.wait_for_callback(
-        callback_path,
-        expected_state,
-        success_message,
-        error_prefix,
-    );
+    let cb_fut = server.wait_for_callback(callback_path, expected_state, success_message, error_prefix);
     tokio::pin!(cb_fut);
 
     let select_result: Result<(String, String), OAuthError> = tokio::select! {
@@ -691,10 +622,7 @@ async fn resolve_authorization_code(
 
             let input = callbacks
                 .on_prompt(&OAuthPrompt {
-                    message: format!(
-                        "{}: Paste the authorization code or full redirect URL:",
-                        error_prefix
-                    ),
+                    message: format!("{}: Paste the authorization code or full redirect URL:", error_prefix),
                     placeholder: None,
                     allow_empty: false,
                 })
@@ -702,10 +630,7 @@ async fn resolve_authorization_code(
 
             let parsed = parse_authorization_input(&input);
             if parsed.code.is_empty() {
-                return Err(OAuthError::Other(format!(
-                    "{}: missing authorization code",
-                    error_prefix
-                )));
+                return Err(OAuthError::Other(format!("{}: missing authorization code", error_prefix)));
             }
             // Swallow the callback error — the user provided code manually.
             let _ = cb_err;
@@ -805,27 +730,17 @@ async fn exchange_anthropic_code(
 
     let refresh_token = token_data["refresh_token"].as_str().map(|s| s.to_string());
 
-    let expires_in = token_data["expires_in"]
-        .as_i64()
-        .ok_or_else(|| OAuthError::TokenExchange("Missing expires_in".into()))?;
+    let expires_in =
+        token_data["expires_in"].as_i64().ok_or_else(|| OAuthError::TokenExchange("Missing expires_in".into()))?;
 
     // Use current time + expires_in - 5 minute buffer, in seconds
     let expires_at = Some(
-        std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_secs() as i64
+        std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_secs() as i64
             + expires_in
             - 300, // 5 min buffer
     );
 
-    Ok(OAuthCredentials {
-        access_token,
-        refresh_token,
-        expires_at,
-        token_type: "Bearer".into(),
-        account_id: None,
-    })
+    Ok(OAuthCredentials { access_token, refresh_token, expires_at, token_type: "Bearer".into(), account_id: None })
 }
 
 /// Refresh an Anthropic OAuth token.
@@ -848,15 +763,11 @@ pub async fn refresh_anthropic_token(refresh_token: &str) -> Result<OAuthCredent
 
     let new_refresh = data["refresh_token"].as_str().map(|s| s.to_string());
 
-    let expires_in = data["expires_in"]
-        .as_i64()
-        .ok_or_else(|| OAuthError::TokenExchange("Missing expires_in".into()))?;
+    let expires_in =
+        data["expires_in"].as_i64().ok_or_else(|| OAuthError::TokenExchange("Missing expires_in".into()))?;
 
     let expires_at = Some(
-        std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_secs() as i64
+        std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_secs() as i64
             + expires_in
             - 300,
     );
@@ -902,11 +813,7 @@ pub fn normalize_domain(input: &str) -> Option<String> {
         return None;
     }
     // If no scheme, prepend https://
-    let with_scheme = if trimmed.contains("://") {
-        trimmed.to_string()
-    } else {
-        format!("https://{}", trimmed)
-    };
+    let with_scheme = if trimmed.contains("://") { trimmed.to_string() } else { format!("https://{}", trimmed) };
     Url::parse(&with_scheme).ok().map(|u| u.host_str().unwrap_or(trimmed).to_string())
 }
 
@@ -931,11 +838,7 @@ pub async fn login_github_copilot(callbacks: &dyn OAuthCallbacks) -> Result<OAut
         .await;
 
     let trimmed = input.trim().to_string();
-    let enterprise_domain = if trimmed.is_empty() {
-        None
-    } else {
-        normalize_domain(&trimmed)
-    };
+    let enterprise_domain = if trimmed.is_empty() { None } else { normalize_domain(&trimmed) };
     if !trimmed.is_empty() && enterprise_domain.is_none() {
         return Err(OAuthError::Other("Invalid GitHub Enterprise URL/domain".into()));
     }
@@ -944,10 +847,7 @@ pub async fn login_github_copilot(callbacks: &dyn OAuthCallbacks) -> Result<OAut
     let (device_code_url, access_token_url, _copilot_token_url) = get_copilot_urls(domain);
 
     // Start device flow
-    let device_body = [
-        ("client_id", GITHUB_CLIENT_ID),
-        ("scope", "read:user"),
-    ];
+    let device_body = [("client_id", GITHUB_CLIENT_ID), ("scope", "read:user")];
     let device_response = post_form(&device_code_url, &device_body).await?;
 
     let device_data: serde_json::Value = serde_json::from_str(&device_response)
@@ -966,24 +866,15 @@ pub async fn login_github_copilot(callbacks: &dyn OAuthCallbacks) -> Result<OAut
         .ok_or_else(|| OAuthError::TokenExchange("Missing verification_uri".into()))?
         .to_string();
     let interval = device_data["interval"].as_i64().unwrap_or(5);
-    let expires_in = device_data["expires_in"]
-        .as_i64()
-        .ok_or_else(|| OAuthError::TokenExchange("Missing expires_in".into()))?;
+    let expires_in =
+        device_data["expires_in"].as_i64().ok_or_else(|| OAuthError::TokenExchange("Missing expires_in".into()))?;
 
     // Show the user code
-    callbacks.on_auth(&OAuthAuthInfo {
-        url: verification_uri,
-        instructions: Some(format!("Enter code: {}", user_code)),
-    });
+    callbacks
+        .on_auth(&OAuthAuthInfo { url: verification_uri, instructions: Some(format!("Enter code: {}", user_code)) });
 
     // Poll for GitHub access token
-    let github_access_token = poll_device_access_token(
-        &access_token_url,
-        &device_code,
-        interval,
-        expires_in,
-    )
-    .await?;
+    let github_access_token = poll_device_access_token(&access_token_url, &device_code, interval, expires_in).await?;
 
     // Exchange GitHub access token for Copilot token
     let credentials = refresh_github_copilot_token(&github_access_token, enterprise_domain.as_deref()).await?;
@@ -997,20 +888,16 @@ async fn poll_device_access_token(
     interval_seconds: i64,
     expires_in: i64,
 ) -> Result<String, OAuthError> {
-    let deadline = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_secs() as i64
+    let deadline = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_secs()
+        as i64
         + expires_in;
 
     let mut interval_ms = (interval_seconds * 1000).max(1000) as u64;
     let mut slow_down_count = 0u32;
 
     loop {
-        let now = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_secs() as i64;
+        let now =
+            std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_secs() as i64;
 
         if now >= deadline {
             if slow_down_count > 0 {
@@ -1198,8 +1085,8 @@ async fn exchange_openai_codex_code(
 
     let response_body = post_form(OPENAI_TOKEN_URL, &body).await?;
 
-    let data: serde_json::Value = serde_json::from_str(&response_body)
-        .map_err(|e| OAuthError::TokenExchange(format!("Invalid JSON: {}", e)))?;
+    let data: serde_json::Value =
+        serde_json::from_str(&response_body).map_err(|e| OAuthError::TokenExchange(format!("Invalid JSON: {}", e)))?;
 
     let access_token = data["access_token"]
         .as_str()
@@ -1211,15 +1098,11 @@ async fn exchange_openai_codex_code(
         .ok_or_else(|| OAuthError::TokenExchange("Missing refresh_token".into()))?
         .to_string();
 
-    let expires_in = data["expires_in"]
-        .as_i64()
-        .ok_or_else(|| OAuthError::TokenExchange("Missing expires_in".into()))?;
+    let expires_in =
+        data["expires_in"].as_i64().ok_or_else(|| OAuthError::TokenExchange("Missing expires_in".into()))?;
 
     let expires_at = Some(
-        std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_secs() as i64
+        std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_secs() as i64
             + expires_in,
     );
 
@@ -1236,16 +1119,12 @@ async fn exchange_openai_codex_code(
 
 /// Refresh an OpenAI Codex OAuth token.
 pub async fn refresh_openai_codex_token(refresh_token: &str) -> Result<OAuthCredentials, OAuthError> {
-    let body = [
-        ("grant_type", "refresh_token"),
-        ("refresh_token", refresh_token),
-        ("client_id", OPENAI_CLIENT_ID),
-    ];
+    let body = [("grant_type", "refresh_token"), ("refresh_token", refresh_token), ("client_id", OPENAI_CLIENT_ID)];
 
     let response_body = post_form(OPENAI_TOKEN_URL, &body).await?;
 
-    let data: serde_json::Value = serde_json::from_str(&response_body)
-        .map_err(|e| OAuthError::TokenExchange(format!("Invalid JSON: {}", e)))?;
+    let data: serde_json::Value =
+        serde_json::from_str(&response_body).map_err(|e| OAuthError::TokenExchange(format!("Invalid JSON: {}", e)))?;
 
     let access_token = data["access_token"]
         .as_str()
@@ -1257,15 +1136,11 @@ pub async fn refresh_openai_codex_token(refresh_token: &str) -> Result<OAuthCred
         .ok_or_else(|| OAuthError::TokenExchange("Missing refresh_token".into()))?
         .to_string();
 
-    let expires_in = data["expires_in"]
-        .as_i64()
-        .ok_or_else(|| OAuthError::TokenExchange("Missing expires_in".into()))?;
+    let expires_in =
+        data["expires_in"].as_i64().ok_or_else(|| OAuthError::TokenExchange("Missing expires_in".into()))?;
 
     let expires_at = Some(
-        std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_secs() as i64
+        std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_secs() as i64
             + expires_in,
     );
 
@@ -1459,18 +1334,14 @@ mod tests {
 
     #[test]
     fn test_parse_full_url() {
-        let parsed = parse_authorization_input(
-            "http://localhost:53692/callback?code=abc123&state=xyz789"
-        );
+        let parsed = parse_authorization_input("http://localhost:53692/callback?code=abc123&state=xyz789");
         assert_eq!(parsed.code, "abc123");
         assert_eq!(parsed.state.as_deref(), Some("xyz789"));
     }
 
     #[test]
     fn test_parse_url_without_state() {
-        let parsed = parse_authorization_input(
-            "http://localhost:53692/callback?code=abc123"
-        );
+        let parsed = parse_authorization_input("http://localhost:53692/callback?code=abc123");
         assert_eq!(parsed.code, "abc123");
         assert_eq!(parsed.state, None);
     }
@@ -1516,22 +1387,15 @@ mod tests {
         let server = CallbackServer::bind(53691).await.unwrap();
 
         let client = reqwest::Client::new();
-        let callback_url = format!(
-            "http://127.0.0.1:53691{}?code=test_code_123&state=expected_state",
-            ANTHROPIC_CALLBACK_PATH
-        );
+        let callback_url =
+            format!("http://127.0.0.1:53691{}?code=test_code_123&state=expected_state", ANTHROPIC_CALLBACK_PATH);
 
         let response_fut = async {
             tokio::time::sleep(Duration::from_millis(100)).await;
             client.get(&callback_url).send().await
         };
 
-        let server_fut = server.wait_for_callback(
-            ANTHROPIC_CALLBACK_PATH,
-            "expected_state",
-            "Success!",
-            "Test",
-        );
+        let server_fut = server.wait_for_callback(ANTHROPIC_CALLBACK_PATH, "expected_state", "Success!", "Test");
 
         let (result, response) = tokio::join!(server_fut, response_fut);
 
@@ -1550,22 +1414,15 @@ mod tests {
         let server = CallbackServer::bind(53690).await.unwrap();
 
         let client = reqwest::Client::new();
-        let callback_url = format!(
-            "http://127.0.0.1:53690{}?code=test_code&state=wrong_state",
-            ANTHROPIC_CALLBACK_PATH
-        );
+        let callback_url =
+            format!("http://127.0.0.1:53690{}?code=test_code&state=wrong_state", ANTHROPIC_CALLBACK_PATH);
 
         let response_fut = async {
             tokio::time::sleep(Duration::from_millis(100)).await;
             client.get(&callback_url).send().await
         };
 
-        let server_fut = server.wait_for_callback(
-            ANTHROPIC_CALLBACK_PATH,
-            "expected_state",
-            "Success!",
-            "Test",
-        );
+        let server_fut = server.wait_for_callback(ANTHROPIC_CALLBACK_PATH, "expected_state", "Success!", "Test");
 
         let (result, response) = tokio::join!(server_fut, response_fut);
 
@@ -1635,10 +1492,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_github_copilot_device_code_body() {
-        let body = [
-            ("client_id", GITHUB_CLIENT_ID),
-            ("scope", "read:user"),
-        ];
+        let body = [("client_id", GITHUB_CLIENT_ID), ("scope", "read:user")];
 
         assert_eq!(body[0], ("client_id", "Iv1.b507a08c87ecfe98"));
         assert_eq!(body[1], ("scope", "read:user"));
@@ -1663,11 +1517,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_openai_codex_token_refresh_body() {
-        let body = [
-            ("grant_type", "refresh_token"),
-            ("refresh_token", "test-refresh-token"),
-            ("client_id", OPENAI_CLIENT_ID),
-        ];
+        let body =
+            [("grant_type", "refresh_token"), ("refresh_token", "test-refresh-token"), ("client_id", OPENAI_CLIENT_ID)];
 
         assert_eq!(body[0], ("grant_type", "refresh_token"));
         assert_eq!(body[1], ("refresh_token", "test-refresh-token"));

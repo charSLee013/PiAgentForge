@@ -21,12 +21,11 @@
 
 use pi_ai_core::api_registry::ApiProvider;
 use pi_ai_core::event_stream::{AssistantMessageEventStream, EventStreamSender};
-use pi_ai_core::types::{
-    ContentBlock as PiContentBlock, Context, ImageContent, ImageSource, Message as PiMessage,
-    MessageRole, Model, StreamError, StreamEvent, StreamOptions, TextContent, ThinkingContent,
-    ToolCallContent, ToolResultContent, Usage,
-};
 use pi_ai_core::types::ToolDefinition;
+use pi_ai_core::types::{
+    ContentBlock as PiContentBlock, Context, ImageContent, ImageSource, Message as PiMessage, MessageRole, Model,
+    StreamError, StreamEvent, StreamOptions, TextContent, ThinkingContent, ToolCallContent, ToolResultContent, Usage,
+};
 use std::collections::HashMap;
 
 // ---------------------------------------------------------------------------
@@ -34,13 +33,13 @@ use std::collections::HashMap;
 // ---------------------------------------------------------------------------
 
 use aws_sdk_bedrockruntime::types::{
-    self as bt, ConversationRole, ImageFormat as AwsImageFormat, ImageSource as AwsImageSource,
-    StopReason, SystemContentBlock as AwsSystemContentBlock,
-    ToolConfiguration as AwsToolConfiguration, ToolResultStatus as AwsToolResultStatus,
+    self as bt, ConversationRole, ImageFormat as AwsImageFormat, ImageSource as AwsImageSource, StopReason,
+    SystemContentBlock as AwsSystemContentBlock, ToolConfiguration as AwsToolConfiguration,
+    ToolResultStatus as AwsToolResultStatus,
 };
 
-use aws_sdk_bedrockruntime::primitives::Blob;
 use aws_sdk_bedrockruntime::Client;
+use aws_sdk_bedrockruntime::primitives::Blob;
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -84,26 +83,17 @@ pub struct BedrockProvider {
 impl BedrockProvider {
     /// Create a new Bedrock provider with default configuration.
     pub fn new() -> Self {
-        Self {
-            region: None,
-            base_url: None,
-        }
+        Self { region: None, base_url: None }
     }
 
     /// Create a provider with an explicit AWS region.
     pub fn with_region(region: impl Into<String>) -> Self {
-        Self {
-            region: Some(region.into()),
-            base_url: None,
-        }
+        Self { region: Some(region.into()), base_url: None }
     }
 
     /// Create a provider with a custom base URL (for testing or VPC endpoints).
     pub fn with_base_url(base_url: impl Into<String>) -> Self {
-        Self {
-            region: None,
-            base_url: Some(base_url.into()),
-        }
+        Self { region: None, base_url: Some(base_url.into()) }
     }
 }
 
@@ -118,12 +108,7 @@ impl ApiProvider for BedrockProvider {
         "bedrock-converse-stream"
     }
 
-    fn stream(
-        &self,
-        model: &Model,
-        context: Context,
-        options: StreamOptions,
-    ) -> AssistantMessageEventStream {
+    fn stream(&self, model: &Model, context: Context, options: StreamOptions) -> AssistantMessageEventStream {
         let (tx, rx) = AssistantMessageEventStream::new();
         let model = model.clone();
         let region = self.region.clone();
@@ -156,13 +141,11 @@ async fn process_stream(
     let resolved_region = resolve_region(&provider_region);
 
     // 2. Build the AWS SDK config.
-    let mut config_builder =
-        aws_sdk_bedrockruntime::Config::builder()
-            .behavior_version(aws_sdk_bedrockruntime::config::BehaviorVersion::latest());
+    let mut config_builder = aws_sdk_bedrockruntime::Config::builder()
+        .behavior_version(aws_sdk_bedrockruntime::config::BehaviorVersion::latest());
 
     if let Some(region) = &resolved_region {
-        config_builder =
-            config_builder.region(aws_sdk_bedrockruntime::config::Region::new(region.clone()));
+        config_builder = config_builder.region(aws_sdk_bedrockruntime::config::Region::new(region.clone()));
     }
 
     // Use the model's base_url or the provider's base_url as a custom endpoint.
@@ -177,18 +160,11 @@ async fn process_stream(
 
     // 4. Build the request.
     let system_prompt = context.system_prompt.clone();
-    let tool_config = if !context.tools.is_empty() {
-        Some(build_tool_config(&context.tools)?)
-    } else {
-        None
-    };
+    let tool_config = if !context.tools.is_empty() { Some(build_tool_config(&context.tools)?) } else { None };
 
     let messages = convert_messages(context, model);
 
-    let mut request = client
-        .converse_stream()
-        .model_id(&model.id)
-        .set_messages(Some(messages));
+    let mut request = client.converse_stream().model_id(&model.id).set_messages(Some(messages));
 
     // System prompt.
     if let Some(ref system_prompt) = system_prompt {
@@ -199,9 +175,7 @@ async fn process_stream(
 
     // Inference config: max_tokens.
     if let Some(max_tokens) = options.max_tokens {
-        let inference_config = bt::InferenceConfiguration::builder()
-            .max_tokens(max_tokens as i32)
-            .build();
+        let inference_config = bt::InferenceConfiguration::builder().max_tokens(max_tokens as i32).build();
         request = request.inference_config(inference_config);
     }
 
@@ -222,11 +196,7 @@ async fn process_stream(
     // 7. Process the event stream.
     let mut state = BedrockStreamState::default();
     if let Err(e) = process_event_stream(&tx, response, &mut state, model).await {
-        emit_error(
-            &tx,
-            format!("Bedrock stream error: {e}"),
-            Some("stream_error".to_owned()),
-        );
+        emit_error(&tx, format!("Bedrock stream error: {e}"), Some("stream_error".to_owned()));
         return Ok(());
     }
 
@@ -235,10 +205,7 @@ async fn process_stream(
     let stop_reason = state.stop_reason.clone().unwrap_or_else(|| "stop".to_owned());
     let message = build_done_message(&state, model, usage.clone());
 
-    let _ = tx.send(StreamEvent::Done {
-        message: Some(message),
-        stop_reason: Some(stop_reason),
-    });
+    let _ = tx.send(StreamEvent::Done { message: Some(message), stop_reason: Some(stop_reason) });
 
     Ok(())
 }
@@ -283,16 +250,14 @@ struct ToolCallBuilder {
 
 impl BedrockStreamState {
     fn get_or_create_tool_call(&mut self, tool_call_index: i32) -> &mut ToolCallBuilder {
-        self.tool_calls
-            .entry(tool_call_index)
-            .or_insert_with(|| ToolCallBuilder {
-                tool_call_index,
-                id: String::new(),
-                name: String::new(),
-                arguments: String::new(),
-                id_emitted: false,
-                name_emitted: false,
-            })
+        self.tool_calls.entry(tool_call_index).or_insert_with(|| ToolCallBuilder {
+            tool_call_index,
+            id: String::new(),
+            name: String::new(),
+            arguments: String::new(),
+            id_emitted: false,
+            name_emitted: false,
+        })
     }
 }
 
@@ -413,9 +378,7 @@ fn handle_content_block_delta(
         ContentBlockDelta::Text(text) => {
             if !text.is_empty() {
                 state.text.push_str(text);
-                let _ = tx.send(StreamEvent::TextDelta {
-                    delta: text.clone(),
-                });
+                let _ = tx.send(StreamEvent::TextDelta { delta: text.clone() });
             }
         }
 
@@ -452,9 +415,7 @@ fn handle_content_block_delta(
                 bt::ReasoningContentBlockDelta::Text(text) => {
                     if !text.is_empty() {
                         state.thinking.push_str(text);
-                        let _ = tx.send(StreamEvent::ThinkingDelta {
-                            delta: text.clone(),
-                        });
+                        let _ = tx.send(StreamEvent::ThinkingDelta { delta: text.clone() });
                     }
                 }
                 bt::ReasoningContentBlockDelta::Signature(sig) => {
@@ -561,10 +522,7 @@ fn convert_messages(context: Context, model: &Model) -> Vec<bt::Message> {
 
 /// Convert a user message to Bedrock format.
 fn convert_user_message(msg: &PiMessage) -> Option<bt::Message> {
-    let has_images = msg
-        .content
-        .iter()
-        .any(|b| matches!(b, PiContentBlock::Image(_)));
+    let has_images = msg.content.iter().any(|b| matches!(b, PiContentBlock::Image(_)));
 
     if !has_images {
         // Simple text-only message.
@@ -644,9 +602,9 @@ fn convert_assistant_message(msg: &PiMessage, _model: &Model) -> Option<bt::Mess
                             .signature(sig.clone())
                             .build()
                             .expect("reasoning text block should build");
-                        blocks.push(bt::ContentBlock::ReasoningContent(
-                            bt::ReasoningContentBlock::ReasoningText(reasoning_text),
-                        ));
+                        blocks.push(bt::ContentBlock::ReasoningContent(bt::ReasoningContentBlock::ReasoningText(
+                            reasoning_text,
+                        )));
                     } else {
                         // No valid signature: degrade to text block.
                         blocks.push(bt::ContentBlock::Text(th.thinking.clone()));
@@ -689,31 +647,20 @@ fn convert_assistant_message(msg: &PiMessage, _model: &Model) -> Option<bt::Mess
 fn convert_tool_result(tr: &ToolResultContent) -> bt::ToolResultBlock {
     let mut builder = bt::ToolResultBlock::builder()
         .tool_use_id(normalize_tool_call_id(&tr.id))
-        .status(if tr.is_error {
-            AwsToolResultStatus::Error
-        } else {
-            AwsToolResultStatus::Success
-        });
+        .status(if tr.is_error { AwsToolResultStatus::Error } else { AwsToolResultStatus::Success });
 
     if tr.is_error {
-        let error_text = if let Some(ref error) = tr.error {
-            format!("Error: {error}")
-        } else {
-            "Error".to_owned()
-        };
-        builder = builder
-            .content(bt::ToolResultContentBlock::Text(error_text));
+        let error_text = if let Some(ref error) = tr.error { format!("Error: {error}") } else { "Error".to_owned() };
+        builder = builder.content(bt::ToolResultContentBlock::Text(error_text));
     } else if let Some(ref content) = tr.content {
         for block in content {
             match block {
                 PiContentBlock::Text(t) => {
-                    builder = builder
-                        .content(bt::ToolResultContentBlock::Text(t.text.clone()));
+                    builder = builder.content(bt::ToolResultContentBlock::Text(t.text.clone()));
                 }
                 PiContentBlock::Image(img) => {
                     if let Some(image_block) = convert_image_to_bedrock(img) {
-                        builder = builder
-                            .content(bt::ToolResultContentBlock::Image(image_block));
+                        builder = builder.content(bt::ToolResultContentBlock::Image(image_block));
                     }
                 }
                 _ => {}
@@ -721,9 +668,7 @@ fn convert_tool_result(tr: &ToolResultContent) -> bt::ToolResultBlock {
         }
     }
 
-    builder
-        .build()
-        .expect("tool result block should build")
+    builder.build().expect("tool result block should build")
 }
 
 /// Convert an image content block to Bedrock format.
@@ -741,10 +686,7 @@ fn convert_image_to_bedrock(img: &ImageContent) -> Option<bt::ImageBlock> {
                 }
             };
 
-            let bytes = match base64::Engine::decode(
-                &base64::engine::general_purpose::STANDARD,
-                data,
-            ) {
+            let bytes = match base64::Engine::decode(&base64::engine::general_purpose::STANDARD, data) {
                 Ok(b) => b,
                 Err(e) => {
                     tracing::warn!("Failed to decode base64 image data: {e}");
@@ -761,9 +703,7 @@ fn convert_image_to_bedrock(img: &ImageContent) -> Option<bt::ImageBlock> {
             )
         }
         ImageSource::Url { .. } => {
-            tracing::warn!(
-                "Bedrock API does not support URL-based images directly; skipping image"
-            );
+            tracing::warn!("Bedrock API does not support URL-based images directly; skipping image");
             None
         }
     }
@@ -800,12 +740,7 @@ fn build_tool_config(
         })
         .collect();
 
-    Ok(
-        AwsToolConfiguration::builder()
-            .set_tools(Some(bedrock_tools))
-            .build()
-            .expect("tool config should build"),
-    )
+    Ok(AwsToolConfiguration::builder().set_tools(Some(bedrock_tools)).build().expect("tool config should build"))
 }
 
 // ---------------------------------------------------------------------------
@@ -834,15 +769,9 @@ fn serde_json_value_to_document(value: &serde_json::Value) -> aws_smithy_types::
             }
         }
         serde_json::Value::String(s) => Document::String(s.clone()),
-        serde_json::Value::Array(arr) => {
-            Document::Array(arr.iter().map(serde_json_value_to_document).collect())
-        }
+        serde_json::Value::Array(arr) => Document::Array(arr.iter().map(serde_json_value_to_document).collect()),
         serde_json::Value::Object(obj) => {
-            Document::Object(
-                obj.iter()
-                    .map(|(k, v)| (k.clone(), serde_json_value_to_document(v)))
-                    .collect(),
-            )
+            Document::Object(obj.iter().map(|(k, v)| (k.clone(), serde_json_value_to_document(v))).collect())
         }
     }
 }
@@ -865,9 +794,7 @@ fn build_done_message(state: &BedrockStreamState, _model: &Model, usage: Usage) 
 
     // Add text block if we have text content.
     if !state.text.is_empty() {
-        content.push(PiContentBlock::Text(TextContent {
-            text: state.text.clone(),
-        }));
+        content.push(PiContentBlock::Text(TextContent { text: state.text.clone() }));
     }
 
     // Add tool call blocks.
@@ -875,10 +802,8 @@ fn build_done_message(state: &BedrockStreamState, _model: &Model, usage: Usage) 
     tool_indices.sort();
     for idx in tool_indices {
         if let Some(builder) = state.tool_calls.get(&idx) {
-            let parsed_args: serde_json::Value =
-                serde_json::from_str(&builder.arguments).unwrap_or_else(|_| {
-                    serde_json::Value::String(builder.arguments.clone())
-                });
+            let parsed_args: serde_json::Value = serde_json::from_str(&builder.arguments)
+                .unwrap_or_else(|_| serde_json::Value::String(builder.arguments.clone()));
 
             content.push(PiContentBlock::ToolCall(ToolCallContent {
                 id: builder.id.clone(),
@@ -888,14 +813,7 @@ fn build_done_message(state: &BedrockStreamState, _model: &Model, usage: Usage) 
         }
     }
 
-    PiMessage {
-        role: MessageRole::Assistant,
-        content,
-        id: None,
-        name: None,
-        usage: Some(usage),
-        redacted: false,
-    }
+    PiMessage { role: MessageRole::Assistant, content, id: None, name: None, usage: Some(usage), redacted: false }
 }
 
 /// Build a [`Usage`] struct from the current state.
@@ -1017,32 +935,16 @@ fn format_bedrock_exception(name: &str, message: &str) -> String {
 fn extract_text(content: &[PiContentBlock]) -> String {
     content
         .iter()
-        .filter_map(|block| {
-            if let PiContentBlock::Text(t) = block {
-                Some(t.text.as_str())
-            } else {
-                None
-            }
-        })
+        .filter_map(|block| if let PiContentBlock::Text(t) = block { Some(t.text.as_str()) } else { None })
         .collect::<Vec<&str>>()
         .join("\n")
 }
 
 /// Send an error event and log it.
-fn emit_error(
-    tx: &EventStreamSender<StreamEvent>,
-    message: impl Into<String>,
-    code: Option<String>,
-) {
+fn emit_error(tx: &EventStreamSender<StreamEvent>, message: impl Into<String>, code: Option<String>) {
     let msg: String = message.into();
     tracing::error!("{msg}");
-    let _ = tx.send(StreamEvent::Error {
-        error: StreamError {
-            message: msg,
-            code,
-            r#type: None,
-        },
-    });
+    let _ = tx.send(StreamEvent::Error { error: StreamError { message: msg, code, r#type: None } });
 }
 
 // ---------------------------------------------------------------------------
@@ -1052,11 +954,11 @@ fn emit_error(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use pi_ai_core::types::{
-        ContentBlock as PiContentBlock, ImageContent, ImageSource, KnownProvider, MessageRole,
-        TextContent, ThinkingContent, ToolCallContent, ToolResultContent,
-    };
     use aws_sdk_bedrockruntime::types::StopReason;
+    use pi_ai_core::types::{
+        ContentBlock as PiContentBlock, ImageContent, ImageSource, KnownProvider, MessageRole, TextContent,
+        ThinkingContent, ToolCallContent, ToolResultContent,
+    };
 
     // ------------------------------------------------------------------
     // Stop reason mapping tests
@@ -1067,10 +969,7 @@ mod tests {
         assert_eq!(map_stop_reason(&StopReason::EndTurn), "stop");
         assert_eq!(map_stop_reason(&StopReason::StopSequence), "stop");
         assert_eq!(map_stop_reason(&StopReason::MaxTokens), "length");
-        assert_eq!(
-            map_stop_reason(&StopReason::ModelContextWindowExceeded),
-            "length"
-        );
+        assert_eq!(map_stop_reason(&StopReason::ModelContextWindowExceeded), "length");
         assert_eq!(map_stop_reason(&StopReason::ToolUse), "toolUse");
         assert_eq!(map_stop_reason(&StopReason::ContentFiltered), "error");
     }
@@ -1104,10 +1003,7 @@ mod tests {
     fn test_normalize_tool_call_id() {
         assert_eq!(normalize_tool_call_id("simple_id"), "simple_id");
         assert_eq!(normalize_tool_call_id("id|with|pipes"), "id_with_pipes");
-        assert_eq!(
-            normalize_tool_call_id("id_with_special_chars!@#"),
-            "id_with_special_chars___"
-        );
+        assert_eq!(normalize_tool_call_id("id_with_special_chars!@#"), "id_with_special_chars___");
         let long_id = "a".repeat(100);
         assert_eq!(normalize_tool_call_id(&long_id).len(), 64);
     }
@@ -1130,12 +1026,8 @@ mod tests {
 
     #[test]
     fn test_serde_json_value_to_document_string() {
-        let doc =
-            serde_json_value_to_document(&serde_json::Value::String("hello".to_owned()));
-        assert_eq!(
-            doc,
-            aws_smithy_types::Document::String("hello".to_owned())
-        );
+        let doc = serde_json_value_to_document(&serde_json::Value::String("hello".to_owned()));
+        assert_eq!(doc, aws_smithy_types::Document::String("hello".to_owned()));
     }
 
     #[test]
@@ -1171,12 +1063,7 @@ mod tests {
     #[test]
     fn test_convert_user_message_text_only() {
         let msg = PiMessage::user_text("Hello");
-        let context = Context {
-            messages: vec![msg],
-            system_prompt: None,
-            model: None,
-            tools: vec![],
-        };
+        let context = Context { messages: vec![msg], system_prompt: None, model: None, tools: vec![] };
         let model = test_model();
         let messages = convert_messages(context, &model);
         assert_eq!(messages.len(), 1);
@@ -1187,20 +1074,13 @@ mod tests {
     fn test_convert_user_message_empty_content_skipped() {
         let msg = PiMessage {
             role: MessageRole::User,
-            content: vec![PiContentBlock::Text(TextContent {
-                text: "   ".to_owned(),
-            })],
+            content: vec![PiContentBlock::Text(TextContent { text: "   ".to_owned() })],
             id: None,
             name: None,
             usage: None,
             redacted: false,
         };
-        let context = Context {
-            messages: vec![msg],
-            system_prompt: None,
-            model: None,
-            tools: vec![],
-        };
+        let context = Context { messages: vec![msg], system_prompt: None, model: None, tools: vec![] };
         let model = test_model();
         let messages = convert_messages(context, &model);
         assert_eq!(messages.len(), 0);
@@ -1215,9 +1095,7 @@ mod tests {
                     thinking: "Let me reason...".into(),
                     signature: Some("sig123".into()),
                 }),
-                PiContentBlock::Text(TextContent {
-                    text: "I'll look that up.".into(),
-                }),
+                PiContentBlock::Text(TextContent { text: "I'll look that up.".into() }),
                 PiContentBlock::ToolCall(ToolCallContent {
                     id: "toolu_abc".into(),
                     name: "search_web".into(),
@@ -1229,12 +1107,7 @@ mod tests {
             usage: None,
             redacted: false,
         };
-        let context = Context {
-            messages: vec![msg],
-            system_prompt: None,
-            model: None,
-            tools: vec![],
-        };
+        let context = Context { messages: vec![msg], system_prompt: None, model: None, tools: vec![] };
         let model = test_model();
         let messages = convert_messages(context, &model);
         assert_eq!(messages.len(), 1);
@@ -1252,9 +1125,7 @@ mod tests {
             content: vec![PiContentBlock::ToolResult(ToolResultContent {
                 id: "toolu_1".into(),
                 name: "get_weather".into(),
-                content: Some(vec![PiContentBlock::Text(TextContent {
-                    text: "72 degrees".into(),
-                })]),
+                content: Some(vec![PiContentBlock::Text(TextContent { text: "72 degrees".into() })]),
                 error: None,
                 is_error: false,
             })],
@@ -1263,12 +1134,7 @@ mod tests {
             usage: None,
             redacted: false,
         };
-        let context = Context {
-            messages: vec![tool_msg],
-            system_prompt: None,
-            model: None,
-            tools: vec![],
-        };
+        let context = Context { messages: vec![tool_msg], system_prompt: None, model: None, tools: vec![] };
         let model = test_model();
         let messages = convert_messages(context, &model);
         assert_eq!(messages.len(), 1);
@@ -1282,9 +1148,7 @@ mod tests {
             content: vec![PiContentBlock::ToolResult(ToolResultContent {
                 id: "toolu_1".into(),
                 name: "get_weather".into(),
-                content: Some(vec![PiContentBlock::Text(TextContent {
-                    text: "72 degrees".into(),
-                })]),
+                content: Some(vec![PiContentBlock::Text(TextContent { text: "72 degrees".into() })]),
                 error: None,
                 is_error: false,
             })],
@@ -1298,9 +1162,7 @@ mod tests {
             content: vec![PiContentBlock::ToolResult(ToolResultContent {
                 id: "toolu_2".into(),
                 name: "get_time".into(),
-                content: Some(vec![PiContentBlock::Text(TextContent {
-                    text: "12:00 PM".into(),
-                })]),
+                content: Some(vec![PiContentBlock::Text(TextContent { text: "12:00 PM".into() })]),
                 error: None,
                 is_error: false,
             })],
@@ -1309,12 +1171,8 @@ mod tests {
             usage: None,
             redacted: false,
         };
-        let context = Context {
-            messages: vec![tool_msg_1, tool_msg_2],
-            system_prompt: None,
-            model: None,
-            tools: vec![],
-        };
+        let context =
+            Context { messages: vec![tool_msg_1, tool_msg_2], system_prompt: None, model: None, tools: vec![] };
         let model = test_model();
         let messages = convert_messages(context, &model);
         assert_eq!(messages.len(), 1);
@@ -1358,10 +1216,7 @@ mod tests {
         let img = ImageContent {
             source: ImageSource::Base64 {
                 media_type: "image/png".into(),
-                data: base64::Engine::encode(
-                    &base64::engine::general_purpose::STANDARD,
-                    "fake-png-bytes",
-                ),
+                data: base64::Engine::encode(&base64::engine::general_purpose::STANDARD, "fake-png-bytes"),
             },
         };
         let result = convert_image_to_bedrock(&img);
@@ -1372,23 +1227,14 @@ mod tests {
 
     #[test]
     fn test_convert_image_to_bedrock_unknown_format() {
-        let img = ImageContent {
-            source: ImageSource::Base64 {
-                media_type: "image/bmp".into(),
-                data: "AAAA".into(),
-            },
-        };
+        let img = ImageContent { source: ImageSource::Base64 { media_type: "image/bmp".into(), data: "AAAA".into() } };
         let result = convert_image_to_bedrock(&img);
         assert!(result.is_none());
     }
 
     #[test]
     fn test_convert_image_to_bedrock_url_source() {
-        let img = ImageContent {
-            source: ImageSource::Url {
-                url: "https://example.com/img.png".into(),
-            },
-        };
+        let img = ImageContent { source: ImageSource::Url { url: "https://example.com/img.png".into() } };
         let result = convert_image_to_bedrock(&img);
         assert!(result.is_none());
     }

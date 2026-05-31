@@ -53,8 +53,7 @@ impl ModelData {
     fn into_model(self) -> Model {
         Model {
             id: self.id,
-            provider: parse_provider(&self.provider)
-                .expect("Unknown provider in model data"),
+            provider: parse_provider(&self.provider).expect("Unknown provider in model data"),
             api: self.api,
             name: self.name,
             base_url: None,
@@ -97,8 +96,7 @@ struct Registry {
 impl Registry {
     fn load() -> Self {
         let json_data: Vec<ModelData> =
-            serde_json::from_str(include_str!("../models.json"))
-                .expect("Failed to parse embedded models.json");
+            serde_json::from_str(include_str!("../models.json")).expect("Failed to parse embedded models.json");
 
         let mut all = Vec::with_capacity(json_data.len());
         let mut by_id = HashMap::new();
@@ -108,18 +106,11 @@ impl Registry {
             let idx = all.len();
             let model = md.into_model();
             by_id.insert(model.id.clone(), idx);
-            by_provider
-                .entry(model.provider)
-                .or_default()
-                .push(idx);
+            by_provider.entry(model.provider).or_default().push(idx);
             all.push(model);
         }
 
-        Registry {
-            all,
-            by_id,
-            by_provider,
-        }
+        Registry { all, by_id, by_provider }
     }
 }
 
@@ -142,12 +133,7 @@ pub fn get_models(provider: KnownProvider) -> Vec<&'static Model> {
     REGISTRY
         .by_provider
         .get(&provider)
-        .map(|indices| {
-            indices
-                .iter()
-                .map(|&i| &REGISTRY.all[i])
-                .collect()
-        })
+        .map(|indices| indices.iter().map(|&i| &REGISTRY.all[i]).collect())
         .unwrap_or_default()
 }
 
@@ -158,11 +144,7 @@ pub fn find_model(id: &str) -> Option<&'static Model> {
 
 /// Find a model by provider + ID.
 pub fn get_model(provider: KnownProvider, id: &str) -> Option<&'static Model> {
-    REGISTRY
-        .by_id
-        .get(id)
-        .filter(|&&i| REGISTRY.all[i].provider == provider)
-        .map(|&i| &REGISTRY.all[i])
+    REGISTRY.by_id.get(id).filter(|&&i| REGISTRY.all[i].provider == provider).map(|&i| &REGISTRY.all[i])
 }
 
 // ── Tests ───────────────────────────────────────────────────────────
@@ -230,8 +212,7 @@ mod tests {
 
     #[test]
     fn test_find_model_anthropic() {
-        let model = find_model("claude-sonnet-4-20250514")
-            .expect("claude-sonnet-4-20250514 should exist");
+        let model = find_model("claude-sonnet-4-20250514").expect("claude-sonnet-4-20250514 should exist");
         assert_eq!(model.provider, KnownProvider::Anthropic);
     }
 
@@ -242,8 +223,7 @@ mod tests {
 
     #[test]
     fn test_get_model_with_provider() {
-        let model = get_model(KnownProvider::OpenAi, "gpt-4o")
-            .expect("gpt-4o should exist for openai");
+        let model = get_model(KnownProvider::OpenAi, "gpt-4o").expect("gpt-4o should exist for openai");
         assert_eq!(model.id, "gpt-4o");
     }
 
@@ -257,14 +237,8 @@ mod tests {
     #[test]
     fn test_model_has_cost_data() {
         let model = find_model("gpt-4o").expect("gpt-4o should exist");
-        assert!(
-            model.cost_per_input_token.is_some(),
-            "gpt-4o should have input cost"
-        );
-        assert!(
-            model.cost_per_output_token.is_some(),
-            "gpt-4o should have output cost"
-        );
+        assert!(model.cost_per_input_token.is_some(), "gpt-4o should have input cost");
+        assert!(model.cost_per_output_token.is_some(), "gpt-4o should have output cost");
     }
 
     #[test]
@@ -304,10 +278,7 @@ mod tests {
         let expected = 2.5 / 1_000_000.0;
         let actual = model.cost_per_input_token.unwrap();
         let diff = (actual - expected).abs();
-        assert!(
-            diff < 1e-12,
-            "cost_per_input_token mismatch: expected {expected}, got {actual}, diff {diff}"
-        );
+        assert!(diff < 1e-12, "cost_per_input_token mismatch: expected {expected}, got {actual}, diff {diff}");
     }
 
     #[test]
@@ -315,15 +286,8 @@ mod tests {
         // Smoke test: ensure all known provider keys are accounted for
         let providers = get_providers();
         // At minimum we should have these
-        for p in &[
-            KnownProvider::OpenAi,
-            KnownProvider::Anthropic,
-            KnownProvider::Google,
-        ] {
-            assert!(
-                providers.contains(p),
-                "missing provider {p:?}"
-            );
+        for p in &[KnownProvider::OpenAi, KnownProvider::Anthropic, KnownProvider::Google] {
+            assert!(providers.contains(p), "missing provider {p:?}");
         }
     }
 }

@@ -79,15 +79,8 @@ impl SessionHeader {
     }
 
     /// Create a new v3 session header referencing a parent session.
-    pub fn with_parent(
-        cwd: impl Into<String>,
-        id: EntryId,
-        parent_session: impl Into<String>,
-    ) -> Self {
-        Self {
-            parent_session: Some(parent_session.into()),
-            ..Self::new(cwd, id)
-        }
+    pub fn with_parent(cwd: impl Into<String>, id: EntryId, parent_session: impl Into<String>) -> Self {
+        Self { parent_session: Some(parent_session.into()), ..Self::new(cwd, id) }
     }
 }
 
@@ -383,11 +376,7 @@ pub struct SessionContext {
 
 impl Default for SessionContext {
     fn default() -> Self {
-        Self {
-            messages: Vec::new(),
-            thinking_level: "off".to_string(),
-            model: None,
-        }
+        Self { messages: Vec::new(), thinking_level: "off".to_string(), model: None }
     }
 }
 

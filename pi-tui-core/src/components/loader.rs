@@ -70,11 +70,7 @@ impl Loader {
 
     /// Set custom animation frames.
     pub fn set_frames(&mut self, frames: Vec<String>) {
-        self.frames = if frames.is_empty() {
-            DEFAULT_FRAMES.iter().map(|s| s.to_string()).collect()
-        } else {
-            frames
-        };
+        self.frames = if frames.is_empty() { DEFAULT_FRAMES.iter().map(|s| s.to_string()).collect() } else { frames };
         self.current_frame = 0;
         self.render_indicator_verbatim = true;
     }
@@ -95,23 +91,11 @@ impl Component for Loader {
         let w = width as usize;
 
         // Build the spinner indicator
-        let frame = self
-            .frames
-            .get(self.current_frame)
-            .cloned()
-            .unwrap_or_default();
+        let frame = self.frames.get(self.current_frame).cloned().unwrap_or_default();
 
-        let styled_frame = if self.render_indicator_verbatim {
-            frame.clone()
-        } else {
-            (self.spinner_color_fn)(&frame)
-        };
+        let styled_frame = if self.render_indicator_verbatim { frame.clone() } else { (self.spinner_color_fn)(&frame) };
 
-        let indicator = if !frame.is_empty() {
-            format!("{} ", styled_frame)
-        } else {
-            String::new()
-        };
+        let indicator = if !frame.is_empty() { format!("{} ", styled_frame) } else { String::new() };
 
         let styled_message = (self.message_color_fn)(&self.message);
         let text = format!("{}{}", indicator, styled_message);
@@ -136,11 +120,7 @@ mod tests {
 
     #[test]
     fn test_loader_renders_message() {
-        let loader = Loader::new(
-            Box::new(|s| s.to_string()),
-            Box::new(|s| s.to_string()),
-            "Loading...".to_string(),
-        );
+        let loader = Loader::new(Box::new(|s| s.to_string()), Box::new(|s| s.to_string()), "Loading...".to_string());
         let lines = loader.render(80);
         assert_eq!(lines.len(), 2);
         // First line is empty spacer
@@ -151,11 +131,7 @@ mod tests {
 
     #[test]
     fn test_loader_width_respected() {
-        let loader = Loader::new(
-            Box::new(|s| s.to_string()),
-            Box::new(|s| s.to_string()),
-            "Test".to_string(),
-        );
+        let loader = Loader::new(Box::new(|s| s.to_string()), Box::new(|s| s.to_string()), "Test".to_string());
         // padding_x=1, frame=⠋ (vis 1), " " separator, "Test" (vis 4) = total 7
         let lines = loader.render(10);
         assert!(!lines.is_empty());
@@ -170,11 +146,8 @@ mod tests {
 
     #[test]
     fn test_loader_tick() {
-        let mut loader = Loader::new(
-            Box::new(|s| s.to_string()),
-            Box::new(|s| s.to_string()),
-            "Loading...".to_string(),
-        );
+        let mut loader =
+            Loader::new(Box::new(|s| s.to_string()), Box::new(|s| s.to_string()), "Loading...".to_string());
         let frame0 = loader.current_frame;
         loader.tick();
         let frame1 = loader.current_frame;
@@ -186,11 +159,8 @@ mod tests {
 
     #[test]
     fn test_loader_set_message() {
-        let mut loader = Loader::new(
-            Box::new(|s| s.to_string()),
-            Box::new(|s| s.to_string()),
-            "Old message".to_string(),
-        );
+        let mut loader =
+            Loader::new(Box::new(|s| s.to_string()), Box::new(|s| s.to_string()), "Old message".to_string());
         loader.set_message("New message".to_string());
         let lines = loader.render(80);
         assert!(lines[1].contains("New message"));
@@ -199,11 +169,8 @@ mod tests {
 
     #[test]
     fn test_loader_without_frames() {
-        let mut loader = Loader::new(
-            Box::new(|s| s.to_string()),
-            Box::new(|s| s.to_string()),
-            "No spinner".to_string(),
-        );
+        let mut loader =
+            Loader::new(Box::new(|s| s.to_string()), Box::new(|s| s.to_string()), "No spinner".to_string());
         loader.set_frames(vec![]);
         let lines = loader.render(80);
         // No frame character, just message
@@ -212,11 +179,7 @@ mod tests {
 
     #[test]
     fn test_loader_custom_frames() {
-        let mut loader = Loader::new(
-            Box::new(|s| s.to_string()),
-            Box::new(|s| s.to_string()),
-            "Custom".to_string(),
-        );
+        let mut loader = Loader::new(Box::new(|s| s.to_string()), Box::new(|s| s.to_string()), "Custom".to_string());
         loader.set_frames(vec!["+".to_string(), "x".to_string()]);
         let lines = loader.render(80);
         assert!(lines[1].contains("+") || lines[1].contains("x"));

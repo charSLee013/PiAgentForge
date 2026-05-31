@@ -7,6 +7,8 @@ license.workspace = true
 [features]
 feat-bedrock = ["dep:pi-provider-bedrock"]
 feat-anthropic = ["dep:pi-provider-anthropic"]
+feat-google = ["dep:pi-provider-google"]
+feat-mistral = ["dep:pi-provider-mistral"]
 
 [dependencies]
 pi-core = { path = "../pi-core" }
@@ -16,6 +18,8 @@ pi-model-catalog = { path = "../pi-model-catalog" }
 pi-provider-openai = { path = "../pi-provider-openai" }
 pi-provider-anthropic = { path = "../pi-provider-anthropic", optional = true }
 pi-provider-bedrock = { path = "../pi-provider-bedrock", optional = true }
+pi-provider-google = { path = "../pi-provider-google", optional = true }
+pi-provider-mistral = { path = "../pi-provider-mistral", optional = true }
 clap.workspace = true
 serde_json.workspace = true
 tokio.workspace = true

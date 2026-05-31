@@ -4,10 +4,10 @@
 //!
 //! Mirrors `packages/coding-agent/src/modes/interactive/components/custom-message.ts`
 
+use crate::Theme;
 use pi_tui_core::components::spacer::Spacer;
 use pi_tui_core::components::text::Text;
 use pi_tui_core::{Component, Container};
-use crate::Theme;
 
 /// Renders a custom message with a label header and content body.
 ///
@@ -36,11 +36,7 @@ impl CustomMessage {
 
             // Content text
             if !content.trim().is_empty() {
-                inner.add(Text::with_padding(
-                    theme.ansi(&theme.text, content.trim()),
-                    1,
-                    0,
-                ));
+                inner.add(Text::with_padding(theme.ansi(&theme.text, content.trim()), 1, 0));
             }
         } else {
             // Collapsed: just the label

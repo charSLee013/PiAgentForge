@@ -34,17 +34,8 @@ pub fn discover_extensions(paths: &[PathBuf]) -> Vec<ExtensionManifest> {
 /// file stem as the extension name. Future iterations may support
 /// companion `extension.toml` files.
 pub fn load_extension_manifest(path: &Path) -> ExtensionManifest {
-    let name = path
-        .file_stem()
-        .and_then(|s| s.to_str())
-        .unwrap_or("unknown")
-        .to_string();
-    ExtensionManifest {
-        name,
-        version: "0.1.0".to_string(),
-        description: None,
-        capabilities: vec!["tools".to_string()],
-    }
+    let name = path.file_stem().and_then(|s| s.to_str()).unwrap_or("unknown").to_string();
+    ExtensionManifest { name, version: "0.1.0".to_string(), description: None, capabilities: vec!["tools".to_string()] }
 }
 
 /// Read a WASM binary from disk for loading into the runtime.

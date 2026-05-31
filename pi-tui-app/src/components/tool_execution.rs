@@ -4,10 +4,10 @@
 //!
 //! Mirrors `packages/coding-agent/src/modes/interactive/components/tool-execution.ts`
 
+use crate::Theme;
 use pi_tui_core::components::spacer::Spacer;
 use pi_tui_core::components::text::Text;
 use pi_tui_core::{Component, Container};
-use crate::Theme;
 
 /// Rendering state for tool execution.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -71,11 +71,7 @@ impl ToolExecution {
         // Arguments
         let trimmed_args = args.trim();
         if !trimmed_args.is_empty() {
-            inner.add(Text::with_padding(
-                theme.ansi(bg_color, trimmed_args),
-                2,
-                0,
-            ));
+            inner.add(Text::with_padding(theme.ansi(bg_color, trimmed_args), 2, 0));
         }
 
         // Result content
@@ -189,15 +185,8 @@ mod tests {
     #[test]
     fn test_tool_execution_no_result() {
         let theme = Theme::dark();
-        let comp = ToolExecution::new(
-            "read".into(),
-            String::new(),
-            String::new(),
-            None,
-            ToolState::Success,
-            true,
-            &theme,
-        );
+        let comp =
+            ToolExecution::new("read".into(), String::new(), String::new(), None, ToolState::Success, true, &theme);
         let lines = comp.render(80);
         assert!(lines.iter().any(|l| l.contains("[read]")));
     }

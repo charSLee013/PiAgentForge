@@ -3,8 +3,8 @@
 
 use crate::io::{DefaultFileSystem, FileSystem, IoError};
 use crate::tools::edit_diff::{
-    apply_edits_to_normalized_content, detect_line_ending, generate_diff_string, normalize_to_lf,
-    restore_line_endings, strip_bom, DiffResult, Edit,
+    DiffResult, Edit, apply_edits_to_normalized_content, detect_line_ending, generate_diff_string, normalize_to_lf,
+    restore_line_endings, strip_bom,
 };
 use crate::tools::file_mutation_queue::with_file_mutation_queue;
 use crate::tools::path_utils::resolve_to_cwd;
@@ -69,11 +69,7 @@ pub async fn execute_edit(input: &EditInput, cwd: &Path) -> Result<EditResult, E
 }
 
 /// Edit a file with a custom filesystem (for testing).
-pub async fn execute_edit_with(
-    input: &EditInput,
-    cwd: &Path,
-    fs: &dyn FileSystem,
-) -> Result<EditResult, EditError> {
+pub async fn execute_edit_with(input: &EditInput, cwd: &Path, fs: &dyn FileSystem) -> Result<EditResult, EditError> {
     let absolute_path = resolve_to_cwd(&input.path, cwd);
 
     tracing::debug!(
@@ -88,56 +84,40 @@ pub async fn execute_edit_with(
         ));
     }
 
-    with_file_mutation_queue(
-        &absolute_path,
-        async {
-            // Check existence.
-            if !fs.exists(&absolute_path).await {
-                return Err(EditError::Edit(format!(
-                    "Could not edit file: {}. File not found.",
-                    input.path
-                )));
-            }
+    with_file_mutation_queue(&absolute_path, async {
+        // Check existence.
+        if !fs.exists(&absolute_path).await {
+            return Err(EditError::Edit(format!("Could not edit file: {}. File not found.", input.path)));
+        }
 
-            // Read the file.
-            let raw_content = fs.read_to_string(&absolute_path).await?;
+        // Read the file.
+        let raw_content = fs.read_to_string(&absolute_path).await?;
 
-            // Strip BOM.
-            let (bom, text) = strip_bom(&raw_content);
-            let original_ending = detect_line_ending(&text);
-            let normalized_content = normalize_to_lf(&text);
+        // Strip BOM.
+        let (bom, text) = strip_bom(&raw_content);
+        let original_ending = detect_line_ending(&text);
+        let normalized_content = normalize_to_lf(&text);
 
-            // Apply edits.
-            let applied = apply_edits_to_normalized_content(
-                &normalized_content,
-                &input.edits,
-                &input.path,
-            )
+        // Apply edits.
+        let applied = apply_edits_to_normalized_content(&normalized_content, &input.edits, &input.path)
             .map_err(EditError::Edit)?;
 
-            // Restore line endings and prepend BOM.
-            let final_content = bom + &restore_line_endings(&applied.new_content, original_ending);
+        // Restore line endings and prepend BOM.
+        let final_content = bom + &restore_line_endings(&applied.new_content, original_ending);
 
-            // Write via the mutation queue's inner operation.
-            fs.write(&absolute_path, final_content.as_bytes()).await?;
+        // Write via the mutation queue's inner operation.
+        fs.write(&absolute_path, final_content.as_bytes()).await?;
 
-            // Generate diff.
-            let DiffResult {
-                diff,
-                first_changed_line,
-            } = generate_diff_string(&applied.base_content, &applied.new_content, 4);
+        // Generate diff.
+        let DiffResult { diff, first_changed_line } =
+            generate_diff_string(&applied.base_content, &applied.new_content, 4);
 
-            Ok(EditResult {
-                message: format!(
-                    "Successfully replaced {} block(s) in {}.",
-                    input.edits.len(),
-                    input.path
-                ),
-                diff,
-                first_changed_line,
-            })
-        },
-    )
+        Ok(EditResult {
+            message: format!("Successfully replaced {} block(s) in {}.", input.edits.len(), input.path),
+            diff,
+            first_changed_line,
+        })
+    })
     .await
 }
 
@@ -164,10 +144,7 @@ mod tests {
         let result = execute_edit_with(
             &EditInput {
                 path: "test.txt".to_string(),
-                edits: vec![Edit {
-                    old_text: "world".to_string(),
-                    new_text: "there".to_string(),
-                }],
+                edits: vec![Edit { old_text: "world".to_string(), new_text: "there".to_string() }],
             },
             &cwd,
             &mock,
@@ -190,14 +167,8 @@ mod tests {
             &EditInput {
                 path: "test.txt".to_string(),
                 edits: vec![
-                    Edit {
-                        old_text: "aaa".to_string(),
-                        new_text: "111".to_string(),
-                    },
-                    Edit {
-                        old_text: "ddd".to_string(),
-                        new_text: "999".to_string(),
-                    },
+                    Edit { old_text: "aaa".to_string(), new_text: "111".to_string() },
+                    Edit { old_text: "ddd".to_string(), new_text: "999".to_string() },
                 ],
             },
             &cwd,
@@ -218,10 +189,7 @@ mod tests {
         let result = execute_edit_with(
             &EditInput {
                 path: "test.txt".to_string(),
-                edits: vec![Edit {
-                    old_text: "nonexistent".to_string(),
-                    new_text: "replacement".to_string(),
-                }],
+                edits: vec![Edit { old_text: "nonexistent".to_string(), new_text: "replacement".to_string() }],
             },
             &cwd,
             &mock,
@@ -239,10 +207,7 @@ mod tests {
         let result = execute_edit_with(
             &EditInput {
                 path: "nonexistent.txt".to_string(),
-                edits: vec![Edit {
-                    old_text: "hello".to_string(),
-                    new_text: "hi".to_string(),
-                }],
+                edits: vec![Edit { old_text: "hello".to_string(), new_text: "hi".to_string() }],
             },
             &cwd,
             &mock,
@@ -257,15 +222,7 @@ mod tests {
         let cwd = test_cwd();
         let mock = MockFileSystem::new();
 
-        let result = execute_edit_with(
-            &EditInput {
-                path: "test.txt".to_string(),
-                edits: vec![],
-            },
-            &cwd,
-            &mock,
-        )
-        .await;
+        let result = execute_edit_with(&EditInput { path: "test.txt".to_string(), edits: vec![] }, &cwd, &mock).await;
 
         assert!(result.is_err());
     }
@@ -280,14 +237,8 @@ mod tests {
             &EditInput {
                 path: "test.txt".to_string(),
                 edits: vec![
-                    Edit {
-                        old_text: "hello world".to_string(),
-                        new_text: "hi".to_string(),
-                    },
-                    Edit {
-                        old_text: "world foo".to_string(),
-                        new_text: "there".to_string(),
-                    },
+                    Edit { old_text: "hello world".to_string(), new_text: "hi".to_string() },
+                    Edit { old_text: "world foo".to_string(), new_text: "there".to_string() },
                 ],
             },
             &cwd,

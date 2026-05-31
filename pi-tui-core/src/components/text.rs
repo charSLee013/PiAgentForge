@@ -18,19 +18,11 @@ pub struct Text {
 
 impl Text {
     pub fn new(content: String) -> Self {
-        Self {
-            content,
-            padding_x: 1,
-            padding_y: 1,
-        }
+        Self { content, padding_x: 1, padding_y: 1 }
     }
 
     pub fn with_padding(content: String, padding_x: u16, padding_y: u16) -> Self {
-        Self {
-            content,
-            padding_x,
-            padding_y,
-        }
+        Self { content, padding_x, padding_y }
     }
 
     pub fn set_content(&mut self, content: String) {
@@ -71,12 +63,7 @@ impl Component for Text {
         for line in &wrapped {
             let line_vis = visible_width(line);
             let right_pad = w.saturating_sub(left_margin + line_vis);
-            content_lines.push(format!(
-                "{}{}{}",
-                " ".repeat(left_margin),
-                line,
-                " ".repeat(right_pad)
-            ));
+            content_lines.push(format!("{}{}{}", " ".repeat(left_margin), line, " ".repeat(right_pad)));
         }
 
         // Vertical padding (empty lines)

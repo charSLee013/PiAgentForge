@@ -19,3 +19,4 @@ futures.workspace = true
 
 [dev-dependencies]
 pi-ai-core = { path = "../pi-ai-core", features = ["test-utils"] }
+tempfile = "3"

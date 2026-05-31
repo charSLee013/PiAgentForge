@@ -4,7 +4,7 @@
 //! Lower score = better match. Returns `None` if no match.
 
 /// Score bonus constants.
-const CONSECUTIVE_BONUS: i32 = 5;  // points off per consecutive match
+const CONSECUTIVE_BONUS: i32 = 5; // points off per consecutive match
 const WORD_BOUNDARY_BONUS: i32 = 10;
 const EXACT_MATCH_BONUS: i32 = 100;
 
@@ -117,11 +117,7 @@ fn try_swapped(query: &str, text: &str) -> Option<i32> {
     // Detect the original order: if query is "abc123", swap to "123abc";
     // if query is "123abc", swap to "abc123".
     let is_alpha_first = query.starts_with(|c: char| c.is_ascii_alphabetic());
-    let swapped = if is_alpha_first {
-        format!("{}{}", digits, letters)
-    } else {
-        format!("{}{}", letters, digits)
-    };
+    let swapped = if is_alpha_first { format!("{}{}", digits, letters) } else { format!("{}{}", letters, digits) };
 
     // Don't bother if the swapped form is the same as the original.
     if swapped == query {

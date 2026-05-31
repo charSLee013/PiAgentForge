@@ -97,10 +97,7 @@ impl Terminal {
     ///
     /// Returns an error if the ANSI escape cannot be written.
     pub fn clear_line(&self) -> io::Result<()> {
-        crossterm::execute!(
-            io::stdout(),
-            crossterm::terminal::Clear(crossterm::terminal::ClearType::CurrentLine)
-        )?;
+        crossterm::execute!(io::stdout(), crossterm::terminal::Clear(crossterm::terminal::ClearType::CurrentLine))?;
         Ok(())
     }
 }

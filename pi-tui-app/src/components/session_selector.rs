@@ -3,15 +3,12 @@
 //! Shows a scrollable list of sessions with filtering and sorting.
 //! Simplified Rust version of the TS SessionSelectorComponent.
 
+use super::session_selector_search::{NameFilter, SortMode, filter_and_sort_sessions};
+use crate::Theme;
 use pi_tui_core::component::Component;
 use pi_tui_core::components::input::Input;
 use pi_tui_core::keys::{matches_key, parse_key};
 use pi_tui_core::utils::truncate_to_width;
-use crate::Theme;
-use super::session_selector_search::{
-    filter_and_sort_sessions,
-    SortMode, NameFilter,
-};
 
 type SessionSelectCallback = Box<dyn FnMut(&str) + Send>;
 
@@ -84,23 +81,13 @@ impl SessionSelector {
     }
 
     fn apply_filter(&mut self) {
-        let search_data: Vec<(&str, &str, bool)> = self
-            .sessions
-            .iter()
-            .map(|s| (s.id.as_str(), s.search_text.as_str(), s.has_name))
-            .collect();
+        let search_data: Vec<(&str, &str, bool)> =
+            self.sessions.iter().map(|s| (s.id.as_str(), s.search_text.as_str(), s.has_name)).collect();
 
-        let results = filter_and_sort_sessions(
-            &search_data,
-            self.input.value(),
-            self.sort_mode,
-            self.name_filter,
-        );
+        let results = filter_and_sort_sessions(&search_data, self.input.value(), self.sort_mode, self.name_filter);
 
         self.filtered = results.iter().map(|(idx, _)| *idx).collect();
-        self.selected_index = self
-            .selected_index
-            .min(self.filtered.len().saturating_sub(1));
+        self.selected_index = self.selected_index.min(self.filtered.len().saturating_sub(1));
     }
 
     fn visible_index_range(&self, max_visible: usize) -> (usize, usize) {
@@ -146,8 +133,9 @@ impl Component for SessionSelector {
         lines.push(format!("{}  {}", title, info));
 
         // Hints
-        let hints = self.theme.ansi(&self.theme.dim,
-            "re:pattern for regex  \"phrase\" for exact  Tab:scope  s:sort  n:named-filter");
+        let hints = self
+            .theme
+            .ansi(&self.theme.dim, "re:pattern for regex  \"phrase\" for exact  Tab:scope  s:sort  n:named-filter");
         lines.push(hints);
         lines.push(String::new());
 
@@ -156,8 +144,10 @@ impl Component for SessionSelector {
         lines.push(String::new());
 
         if self.filtered.is_empty() {
-            lines.push(self.theme.ansi(&self.theme.muted,
-                if self.sessions.is_empty() { "  No sessions" } else { "  No matching sessions" }));
+            lines.push(self.theme.ansi(
+                &self.theme.muted,
+                if self.sessions.is_empty() { "  No sessions" } else { "  No matching sessions" },
+            ));
             return lines;
         }
 
@@ -187,8 +177,8 @@ impl Component for SessionSelector {
 
         // Scroll indicator
         if start > 0 || end < self.filtered.len() {
-            let scroll = self.theme.ansi(&self.theme.muted,
-                &format!("  ({}/{})", self.selected_index + 1, self.filtered.len()));
+            let scroll =
+                self.theme.ansi(&self.theme.muted, &format!("  ({}/{})", self.selected_index + 1, self.filtered.len()));
             lines.push(scroll);
         }
 
@@ -199,19 +189,17 @@ impl Component for SessionSelector {
         let event = parse_key(data);
 
         if matches_key(&event, "up") {
-            if self.filtered.is_empty() { return; }
-            self.selected_index = if self.selected_index == 0 {
-                self.filtered.len() - 1
-            } else {
-                self.selected_index - 1
-            };
+            if self.filtered.is_empty() {
+                return;
+            }
+            self.selected_index =
+                if self.selected_index == 0 { self.filtered.len() - 1 } else { self.selected_index - 1 };
         } else if matches_key(&event, "down") {
-            if self.filtered.is_empty() { return; }
-            self.selected_index = if self.selected_index == self.filtered.len() - 1 {
-                0
-            } else {
-                self.selected_index + 1
-            };
+            if self.filtered.is_empty() {
+                return;
+            }
+            self.selected_index =
+                if self.selected_index == self.filtered.len() - 1 { 0 } else { self.selected_index + 1 };
         } else if matches_key(&event, "enter") {
             if let Some(&idx) = self.filtered.get(self.selected_index) {
                 let id = self.sessions[idx].id.clone();
@@ -256,10 +244,7 @@ mod tests {
     #[test]
     fn test_session_selector_renders_sessions() {
         let theme = Theme::dark();
-        let sessions = vec![
-            make_session("s1", Some("My Session")),
-            make_session("s2", None),
-        ];
+        let sessions = vec![make_session("s1", Some("My Session")), make_session("s2", None)];
         let selector = SessionSelector::new(sessions, &theme);
         let lines = selector.render(80);
         let joined = lines.join(" ");
@@ -280,10 +265,7 @@ mod tests {
     #[test]
     fn test_session_selector_toggle_name_filter() {
         let theme = Theme::dark();
-        let sessions = vec![
-            make_session("s1", Some("Named Session")),
-            make_session("s2", None),
-        ];
+        let sessions = vec![make_session("s1", Some("Named Session")), make_session("s2", None)];
         let mut selector = SessionSelector::new(sessions, &theme);
         // Initially All, both visible
         assert_eq!(selector.filtered.len(), 2);
@@ -295,10 +277,7 @@ mod tests {
     #[test]
     fn test_session_selector_navigation() {
         let theme = Theme::dark();
-        let sessions = vec![
-            make_session("s1", Some("A")),
-            make_session("s2", Some("B")),
-        ];
+        let sessions = vec![make_session("s1", Some("A")), make_session("s2", Some("B"))];
         let mut selector = SessionSelector::new(sessions, &theme);
         assert_eq!(selector.selected_index, 0);
         selector.handle_input("\x1b[B"); // Down

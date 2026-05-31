@@ -8,10 +8,8 @@
 use std::cell::RefCell;
 use std::sync::OnceLock;
 
-use comrak::nodes::{
-    AstNode, ListType, NodeCodeBlock, NodeHeading, NodeHtmlBlock, NodeList, NodeValue,
-};
-use comrak::{parse_document, Arena, Options};
+use comrak::nodes::{AstNode, ListType, NodeCodeBlock, NodeHeading, NodeHtmlBlock, NodeList, NodeValue};
+use comrak::{Arena, Options, parse_document};
 use syntect::highlighting::ThemeSet;
 use syntect::parsing::SyntaxSet;
 
@@ -112,11 +110,7 @@ pub struct Markdown {
 impl Markdown {
     /// Create a new `Markdown` component.
     pub fn new(text: String, theme: MarkdownTheme) -> Self {
-        Self {
-            text,
-            theme,
-            cached_lines: RefCell::new(None),
-        }
+        Self { text, theme, cached_lines: RefCell::new(None) }
     }
 
     /// Return the current markdown source text.
@@ -140,13 +134,7 @@ impl Markdown {
     // -----------------------------------------------------------------------
 
     /// Render a single block-level node.
-    fn render_block<'a>(
-        &self,
-        node: &'a AstNode<'a>,
-        width: usize,
-        add_spacing: bool,
-        tight: bool,
-    ) -> Vec<String> {
+    fn render_block<'a>(&self, node: &'a AstNode<'a>, width: usize, add_spacing: bool, tight: bool) -> Vec<String> {
         let data = node.data.borrow();
         match &data.value {
             NodeValue::Heading(h) => self.render_heading(node, h, add_spacing, tight),
@@ -164,11 +152,7 @@ impl Markdown {
     /// Return the per-level heading ANSI prefix, falling back to an empty
     /// string for out-of-range levels.
     fn heading_style(&self, level: usize) -> &'static str {
-        self.theme
-            .heading
-            .get(level.saturating_sub(1))
-            .copied()
-            .unwrap_or("")
+        self.theme.heading.get(level.saturating_sub(1)).copied().unwrap_or("")
     }
 
     // -- heading -----------------------------------------------------------
@@ -185,11 +169,8 @@ impl Markdown {
         let content = self.render_inline_children(node);
 
         // Prefix "# ..." for level >= 3
-        let prefix = if level >= 3 {
-            format!("{}#{} \x1b[0m{}", hstyle, "#".repeat(level - 1), hstyle)
-        } else {
-            String::new()
-        };
+        let prefix =
+            if level >= 3 { format!("{}#{} \x1b[0m{}", hstyle, "#".repeat(level - 1), hstyle) } else { String::new() };
 
         let line = format!("{}{}{}{}", hstyle, prefix, content, RESET);
         let mut out = wrap_text_with_ansi(&line, 9999); // no width limit for heading itself
@@ -202,12 +183,7 @@ impl Markdown {
 
     // -- paragraph ---------------------------------------------------------
 
-    fn render_paragraph<'a>(
-        &self,
-        node: &'a AstNode<'a>,
-        add_spacing: bool,
-        tight: bool,
-    ) -> Vec<String> {
+    fn render_paragraph<'a>(&self, node: &'a AstNode<'a>, add_spacing: bool, tight: bool) -> Vec<String> {
         let content = self.render_inline_children(node);
         let lines = wrap_text_with_ansi(&content, 9999); // width is applied at top level
 
@@ -220,19 +196,11 @@ impl Markdown {
 
     // -- code block --------------------------------------------------------
 
-    fn render_code_block(
-        &self,
-        cb: &NodeCodeBlock,
-        add_spacing: bool,
-    ) -> Vec<String> {
+    fn render_code_block(&self, cb: &NodeCodeBlock, add_spacing: bool) -> Vec<String> {
         let mut out: Vec<String> = Vec::new();
 
         // Opening fence
-        let lang_info = if cb.info.is_empty() {
-            String::from("```")
-        } else {
-            format!("```{}", cb.info)
-        };
+        let lang_info = if cb.info.is_empty() { String::from("```") } else { format!("```{}", cb.info) };
         out.push(format!("{}{}{}", self.theme.code_block_border, lang_info, RESET));
 
         // Strip trailing newline from literal to avoid empty last line
@@ -246,10 +214,7 @@ impl Markdown {
             }
         } else {
             for code_line in code_text.split('\n') {
-                out.push(format!(
-                    "{}{}{}{}",
-                    indent, self.theme.code_block, code_line, RESET
-                ));
+                out.push(format!("{}{}{}{}", indent, self.theme.code_block, code_line, RESET));
             }
         }
 
@@ -306,11 +271,8 @@ impl Markdown {
                         let tight = list.tight;
                         let item_lines = self.render_block(child, 9999, false, tight);
                         for line in item_lines {
-                            let line_prefix = if rendered_any_line {
-                                continuation_prefix.as_str()
-                            } else {
-                                first_prefix.as_str()
-                            };
+                            let line_prefix =
+                                if rendered_any_line { continuation_prefix.as_str() } else { first_prefix.as_str() };
                             out.push(format!("{}{}", line_prefix, line));
                             rendered_any_line = true;
                         }
@@ -324,9 +286,7 @@ impl Markdown {
 
             // Add spacing between list items for loose lists
             if !list.tight && i < total_items - 1 {
-                let has_paragraph = item_node.children().any(|c| {
-                    matches!(c.data.borrow().value, NodeValue::Paragraph)
-                });
+                let has_paragraph = item_node.children().any(|c| matches!(c.data.borrow().value, NodeValue::Paragraph));
                 if has_paragraph {
                     out.push(String::new());
                 }
@@ -338,12 +298,7 @@ impl Markdown {
 
     // -- blockquote --------------------------------------------------------
 
-    fn render_blockquote<'a>(
-        &self,
-        node: &'a AstNode<'a>,
-        width: usize,
-        add_spacing: bool,
-    ) -> Vec<String> {
+    fn render_blockquote<'a>(&self, node: &'a AstNode<'a>, width: usize, add_spacing: bool) -> Vec<String> {
         let content_width = std::cmp::max(1, width.saturating_sub(2));
 
         let mut rendered: Vec<String> = Vec::new();
@@ -360,13 +315,7 @@ impl Markdown {
                 let styled_line = format!("{}{}", self.theme.quote, line);
                 let wrapped = wrap_text_with_ansi(&styled_line, content_width);
                 for wl in wrapped {
-                    rendered.push(format!(
-                        "{}{}{}{}",
-                        self.theme.quote_border,
-                        "\u{2502} ",
-                        wl,
-                        RESET
-                    ));
+                    rendered.push(format!("{}{}{}{}", self.theme.quote_border, "\u{2502} ", wl, RESET));
                 }
             }
         }
@@ -422,10 +371,7 @@ impl Markdown {
             header_cells = body_rows.remove(0);
         }
 
-        let actual_cols = std::cmp::max(
-            header_cells.len(),
-            body_rows.iter().map(|r| r.len()).max().unwrap_or(0),
-        );
+        let actual_cols = std::cmp::max(header_cells.len(), body_rows.iter().map(|r| r.len()).max().unwrap_or(0));
 
         if actual_cols == 0 {
             return Vec::new();
@@ -458,11 +404,7 @@ impl Markdown {
                 }
                 let w = visible_width(cell_text);
                 natural[i] = std::cmp::max(natural[i], w);
-                let longest = cell_text
-                    .split_whitespace()
-                    .map(visible_width)
-                    .max()
-                    .unwrap_or(1);
+                let longest = cell_text.split_whitespace().map(visible_width).max().unwrap_or(1);
                 let clamped = std::cmp::min(longest, max_unbroken);
                 min_word[i] = std::cmp::max(min_word[i], clamped);
             }
@@ -488,22 +430,15 @@ impl Markdown {
 
         let total_natural: usize = natural.iter().sum();
         let mut col_widths: Vec<usize> = if total_natural <= available_for_cells {
-            natural
-                .iter()
-                .enumerate()
-                .map(|(i, &w)| std::cmp::max(w, min_word[i]))
-                .collect()
+            natural.iter().enumerate().map(|(i, &w)| std::cmp::max(w, min_word[i])).collect()
         } else {
             let total_min: usize = min_word.iter().sum();
             let extra = available_for_cells.saturating_sub(total_min);
             let mut widths = min_word.clone();
 
             if extra > 0 {
-                let total_growable: usize = natural
-                    .iter()
-                    .zip(min_word.iter())
-                    .map(|(&n, &m)| n.saturating_sub(m))
-                    .sum();
+                let total_growable: usize =
+                    natural.iter().zip(min_word.iter()).map(|(&n, &m)| n.saturating_sub(m)).sum();
 
                 if total_growable > 0 {
                     let mut allocated = 0usize;
@@ -553,25 +488,11 @@ impl Markdown {
         // Render borders and content
         let mut lines: Vec<String> = Vec::new();
 
-        lines.push(format!(
-            "┌─{}─┐",
-            col_widths
-                .iter()
-                .map(|&w| "─".repeat(w))
-                .collect::<Vec<_>>()
-                .join("─┬─")
-        ));
+        lines.push(format!("┌─{}─┐", col_widths.iter().map(|&w| "─".repeat(w)).collect::<Vec<_>>().join("─┬─")));
 
         self.render_table_row(&header_padded, &col_widths, true, &mut lines);
 
-        lines.push(format!(
-            "├─{}─┤",
-            col_widths
-                .iter()
-                .map(|&w| "─".repeat(w))
-                .collect::<Vec<_>>()
-                .join("─┼─")
-        ));
+        lines.push(format!("├─{}─┤", col_widths.iter().map(|&w| "─".repeat(w)).collect::<Vec<_>>().join("─┼─")));
 
         for (ri, row) in body_rows.iter().enumerate() {
             let mut padded: Vec<String> = row.clone();
@@ -581,25 +502,12 @@ impl Markdown {
             self.render_table_row(&padded, &col_widths, false, &mut lines);
 
             if ri < body_rows.len() - 1 {
-                lines.push(format!(
-                    "├─{}─┤",
-                    col_widths
-                        .iter()
-                        .map(|&w| "─".repeat(w))
-                        .collect::<Vec<_>>()
-                        .join("─┼─")
-                ));
+                lines
+                    .push(format!("├─{}─┤", col_widths.iter().map(|&w| "─".repeat(w)).collect::<Vec<_>>().join("─┼─")));
             }
         }
 
-        lines.push(format!(
-            "└─{}─┘",
-            col_widths
-                .iter()
-                .map(|&w| "─".repeat(w))
-                .collect::<Vec<_>>()
-                .join("─┴─")
-        ));
+        lines.push(format!("└─{}─┘", col_widths.iter().map(|&w| "─".repeat(w)).collect::<Vec<_>>().join("─┴─")));
 
         if add_spacing {
             lines.push(String::new());
@@ -608,23 +516,13 @@ impl Markdown {
     }
 
     /// Render a single table row (header or body).
-    fn render_table_row(
-        &self,
-        cells: &[String],
-        col_widths: &[usize],
-        is_header: bool,
-        out: &mut Vec<String>,
-    ) {
+    fn render_table_row(&self, cells: &[String], col_widths: &[usize], is_header: bool, out: &mut Vec<String>) {
         let cell_lines: Vec<Vec<String>> = cells
             .iter()
             .enumerate()
             .map(|(i, text)| {
                 let cw = *col_widths.get(i).unwrap_or(&1);
-                if text.is_empty() {
-                    vec![String::new()]
-                } else {
-                    wrap_text_with_ansi(text, cw)
-                }
+                if text.is_empty() { vec![String::new()] } else { wrap_text_with_ansi(text, cw) }
             })
             .collect();
 
@@ -640,11 +538,7 @@ impl Markdown {
                     let visible = visible_width(&line_text);
                     let padding = " ".repeat(cw.saturating_sub(visible));
                     let padded = format!("{}{}", line_text, padding);
-                    if is_header {
-                        format!("{}{}{}", self.theme.bold, padded, RESET)
-                    } else {
-                        padded
-                    }
+                    if is_header { format!("{}{}{}", self.theme.bold, padded, RESET) } else { padded }
                 })
                 .collect();
 
@@ -714,25 +608,15 @@ impl Markdown {
             }
             NodeValue::Link(link) => {
                 let content = self.render_inline_children(node);
-                let styled = format!(
-                    "{}{}{}{}",
-                    self.theme.link, self.theme.underline, content, RESET
-                );
-                format!(
-                    "\x1b]8;;{}\x1b\\{}\x1b]8;;\x1b\\",
-                    link.url, styled
-                )
+                let styled = format!("{}{}{}{}", self.theme.link, self.theme.underline, content, RESET);
+                format!("\x1b]8;;{}\x1b\\{}\x1b]8;;\x1b\\", link.url, styled)
             }
             NodeValue::SoftBreak => "\n".to_string(),
             NodeValue::LineBreak => "\n".to_string(),
             NodeValue::HtmlInline(html) => html.clone(),
             NodeValue::Image(img) => {
                 let alt = self.render_inline_children(node);
-                if alt.is_empty() {
-                    format!("[{}]", img.url)
-                } else {
-                    alt
-                }
+                if alt.is_empty() { format!("[{}]", img.url) } else { alt }
             }
             _ => String::new(),
         }
@@ -746,9 +630,7 @@ impl Markdown {
 impl Component for Markdown {
     fn render(&self, width: u16) -> Vec<String> {
         // Check cache
-        if let Some((ref cached_text, cached_width, ref cached_lines)) =
-            *self.cached_lines.borrow()
-        {
+        if let Some((ref cached_text, cached_width, ref cached_lines)) = *self.cached_lines.borrow() {
             if cached_text == &self.text && cached_width == width {
                 return cached_lines.clone();
             }
@@ -903,10 +785,7 @@ mod tests {
         let lines = m.render(80);
         let visible = lines.iter().map(|l| visible_width(l)).sum::<usize>();
         assert!(visible > 0, "heading produced no visible content");
-        assert!(
-            lines.iter().any(|l| l.contains("Section Title")),
-            "heading should contain title text"
-        );
+        assert!(lines.iter().any(|l| l.contains("Section Title")), "heading should contain title text");
     }
 
     #[test]
@@ -914,11 +793,7 @@ mod tests {
         let m = md("### Sub Section");
         let lines = m.render(80);
         let combined = lines.join(" ");
-        assert!(
-            combined.contains("###"),
-            "H3 should show ### prefix, got: {:?}",
-            lines
-        );
+        assert!(combined.contains("###"), "H3 should show ### prefix, got: {:?}", lines);
     }
 
     // -- Code block --------------------------------------------------------
@@ -928,15 +803,8 @@ mod tests {
         let m = md("```\nlet x = 1;\n```\n");
         let lines = m.render(80);
         let combined = lines.join("\n");
-        assert!(
-            combined.contains("let x = 1;"),
-            "code block should contain the code text, got: {:?}",
-            lines
-        );
-        assert!(
-            combined.contains("```"),
-            "code block should have fence markers"
-        );
+        assert!(combined.contains("let x = 1;"), "code block should contain the code text, got: {:?}", lines);
+        assert!(combined.contains("```"), "code block should have fence markers");
     }
 
     #[test]
@@ -944,26 +812,13 @@ mod tests {
         let m = md("```rust\nfn main() {}\n```\n");
         let lines = m.render(80);
         let combined = lines.join("\n");
-        assert!(
-            combined.contains("```rust"),
-            "opening fence should show language, got: {:?}",
-            lines
-        );
+        assert!(combined.contains("```rust"), "opening fence should show language, got: {:?}", lines);
         // Note: syntax highlighting inserts ANSI codes between tokens,
         // so "fn main()" won't appear contiguously. Check for presence of
         // the individual words instead.
-        assert!(
-            combined.contains("fn"),
-            "code block should contain 'fn', got: {:?}",
-            lines
-        );
-        assert!(
-            combined.contains("main"),
-            "code block should contain 'main', got: {:?}",
-            lines
-        );
+        assert!(combined.contains("fn"), "code block should contain 'fn', got: {:?}", lines);
+        assert!(combined.contains("main"), "code block should contain 'main', got: {:?}", lines);
     }
-
 
     // -- List --------------------------------------------------------------
 
@@ -971,42 +826,24 @@ mod tests {
     fn test_bullet_list() {
         let m = md("- item one\n- item two\n- item three");
         let lines = m.render(80);
-        assert!(
-            lines.iter().any(|l| l.contains("item one")),
-            "list should contain 'item one'"
-        );
-        assert!(
-            lines.iter().any(|l| l.contains("item two")),
-            "list should contain 'item two'"
-        );
+        assert!(lines.iter().any(|l| l.contains("item one")), "list should contain 'item one'");
+        assert!(lines.iter().any(|l| l.contains("item two")), "list should contain 'item two'");
     }
 
     #[test]
     fn test_ordered_list() {
         let m = md("1. first\n2. second\n3. third");
         let lines = m.render(80);
-        assert!(
-            lines.iter().any(|l| l.contains("first")),
-            "ordered list should contain 'first'"
-        );
-        assert!(
-            lines.iter().any(|l| l.contains("second")),
-            "ordered list should contain 'second'"
-        );
+        assert!(lines.iter().any(|l| l.contains("first")), "ordered list should contain 'first'");
+        assert!(lines.iter().any(|l| l.contains("second")), "ordered list should contain 'second'");
     }
 
     #[test]
     fn test_nested_list() {
         let m = md("- outer\n  - inner\n- outer2");
         let lines = m.render(80);
-        assert!(
-            lines.iter().any(|l| l.contains("outer")),
-            "nested list should contain 'outer'"
-        );
-        assert!(
-            lines.iter().any(|l| l.contains("inner")),
-            "nested list should contain 'inner'"
-        );
+        assert!(lines.iter().any(|l| l.contains("outer")), "nested list should contain 'outer'");
+        assert!(lines.iter().any(|l| l.contains("inner")), "nested list should contain 'inner'");
     }
 
     // -- Inline bold / italic ----------------------------------------------
@@ -1016,15 +853,8 @@ mod tests {
         let m = md("This is **bold** text");
         let lines = m.render(80);
         let combined = lines.join(" ");
-        assert!(
-            combined.contains("\x1b[1m"),
-            "bold text should contain bold ANSI code, got: {:?}",
-            lines
-        );
-        assert!(
-            combined.contains("bold"),
-            "rendered text should contain 'bold'"
-        );
+        assert!(combined.contains("\x1b[1m"), "bold text should contain bold ANSI code, got: {:?}", lines);
+        assert!(combined.contains("bold"), "rendered text should contain 'bold'");
     }
 
     #[test]
@@ -1032,10 +862,7 @@ mod tests {
         let m = md("This is *italic* text");
         let lines = m.render(80);
         let combined = lines.join(" ");
-        assert!(
-            combined.contains("\x1b[3m"),
-            "italic text should contain italic ANSI code"
-        );
+        assert!(combined.contains("\x1b[3m"), "italic text should contain italic ANSI code");
     }
 
     #[test]
@@ -1043,14 +870,8 @@ mod tests {
         let m = md("Use the `foo()` function");
         let lines = m.render(80);
         let combined = lines.join(" ");
-        assert!(
-            combined.contains("foo()"),
-            "inline code should contain code text"
-        );
-        assert!(
-            combined.contains("\x1b[33m"),
-            "inline code should contain code ANSI color"
-        );
+        assert!(combined.contains("foo()"), "inline code should contain code text");
+        assert!(combined.contains("\x1b[33m"), "inline code should contain code ANSI color");
     }
 
     // -- Cache invalidation ------------------------------------------------
@@ -1083,10 +904,7 @@ mod tests {
         let combined = lines.join(" ");
         assert!(combined.contains("\x1b[1m"), "should have bold ANSI");
         assert!(combined.contains("\x1b[3m"), "should have italic ANSI");
-        assert!(
-            combined.contains("bold and italic"),
-            "should contain the text"
-        );
+        assert!(combined.contains("bold and italic"), "should contain the text");
     }
 
     // -- Link --------------------------------------------------------------
@@ -1096,14 +914,8 @@ mod tests {
         let m = md("Click [here](https://example.com) now");
         let lines = m.render(80);
         let combined = lines.join(" ");
-        assert!(
-            combined.contains("\x1b]8;;https://example.com"),
-            "link should contain OSC 8 hyperlink open"
-        );
-        assert!(
-            combined.contains("\x1b]8;;\x1b\\"),
-            "link should contain OSC 8 hyperlink close"
-        );
+        assert!(combined.contains("\x1b]8;;https://example.com"), "link should contain OSC 8 hyperlink open");
+        assert!(combined.contains("\x1b]8;;\x1b\\"), "link should contain OSC 8 hyperlink close");
         assert!(combined.contains("here"), "link text should be present");
     }
 
@@ -1114,10 +926,7 @@ mod tests {
         let m = md("---\n");
         let lines = m.render(80);
         let combined = lines.join("\n");
-        assert!(
-            combined.contains("─"),
-            "thematic break should contain ─ characters"
-        );
+        assert!(combined.contains("─"), "thematic break should contain ─ characters");
     }
 
     // -- Blockquote --------------------------------------------------------
@@ -1127,18 +936,9 @@ mod tests {
         let m = md("> quoted text\n> more quote");
         let lines = m.render(80);
         let combined = lines.join("\n");
-        assert!(
-            combined.contains("quoted text"),
-            "blockquote should contain quoted text"
-        );
-        assert!(
-            combined.contains("more quote"),
-            "blockquote should contain continuation text"
-        );
-        assert!(
-            combined.contains("\u{2502}"),
-            "blockquote should use │ border"
-        );
+        assert!(combined.contains("quoted text"), "blockquote should contain quoted text");
+        assert!(combined.contains("more quote"), "blockquote should contain continuation text");
+        assert!(combined.contains("\u{2502}"), "blockquote should use │ border");
     }
 
     // -- Table -------------------------------------------------------------
@@ -1161,34 +961,23 @@ mod tests {
         let m = md("***\n");
         let lines = m.render(80);
         let combined = lines.join("\n");
-        assert!(
-            combined.contains("─"),
-            "horizontal rule should contain ─"
-        );
+        assert!(combined.contains("─"), "horizontal rule should contain ─");
     }
 
     // -- Word wrapping -----------------------------------------------------
 
     #[test]
     fn test_long_text_wraps() {
-        let long = "This is a very long line that should be wrapped because it exceeds the available width of forty columns. ";
+        let long =
+            "This is a very long line that should be wrapped because it exceeds the available width of forty columns. ";
 
         let m = md(long);
         let lines = m.render(20);
         for line in &lines {
             let vw = visible_width(line);
-            assert!(
-                vw <= 20,
-                "wrapped line has visible width {} > 20: {:?}",
-                vw,
-                line
-            );
+            assert!(vw <= 20, "wrapped line has visible width {} > 20: {:?}", vw, line);
         }
-        assert!(
-            lines.len() > 1,
-            "long text should produce multiple wrapped lines, got {}",
-            lines.len()
-        );
+        assert!(lines.len() > 1, "long text should produce multiple wrapped lines, got {}", lines.len());
     }
 
     // -- Escaped HTML ------------------------------------------------------
@@ -1198,13 +987,7 @@ mod tests {
         let m = md("<div>hello</div>\n\n<p>world</p>\n");
         let lines = m.render(80);
         let combined = lines.join(" ");
-        assert!(
-            combined.contains("hello"),
-            "html block should contain 'hello'"
-        );
-        assert!(
-            combined.contains("world"),
-            "html block should contain 'world'"
-        );
+        assert!(combined.contains("hello"), "html block should contain 'hello'");
+        assert!(combined.contains("world"), "html block should contain 'world'");
     }
 }

@@ -1,8 +1,8 @@
 //! Provider API registry.
 //! Mirrors packages/ai/src/api-registry.ts
 
-use crate::types::{ApiId, Context, Model, StreamOptions};
 use crate::event_stream::AssistantMessageEventStream;
+use crate::types::{ApiId, Context, Model, StreamOptions};
 use std::collections::HashMap;
 use std::sync::OnceLock;
 use tokio::sync::RwLock;

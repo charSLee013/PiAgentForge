@@ -343,22 +343,11 @@ pub struct RpcResponse {
 impl RpcResponse {
     /// Create a success response.
     pub fn success(id: Option<String>, command: impl Into<String>) -> Self {
-        Self {
-            id,
-            r#type: "response".to_string(),
-            command: command.into(),
-            success: true,
-            data: None,
-            error: None,
-        }
+        Self { id, r#type: "response".to_string(), command: command.into(), success: true, data: None, error: None }
     }
 
     /// Create a success response with data.
-    pub fn success_with_data(
-        id: Option<String>,
-        command: impl Into<String>,
-        data: serde_json::Value,
-    ) -> Self {
+    pub fn success_with_data(id: Option<String>, command: impl Into<String>, data: serde_json::Value) -> Self {
         Self {
             id,
             r#type: "response".to_string(),
@@ -370,11 +359,7 @@ impl RpcResponse {
     }
 
     /// Create an error response.
-    pub fn error(
-        id: Option<String>,
-        command: impl Into<String>,
-        message: impl Into<String>,
-    ) -> Self {
+    pub fn error(id: Option<String>, command: impl Into<String>, message: impl Into<String>) -> Self {
         Self {
             id,
             r#type: "response".to_string(),
@@ -480,52 +465,27 @@ pub enum RpcExtensionUiRequest {
     /// Set the terminal title.
     #[serde(rename = "setTitle")]
     #[serde(rename_all = "camelCase")]
-    SetTitle {
-        r#type: String,
-        id: String,
-        title: String,
-    },
+    SetTitle { r#type: String, id: String, title: String },
     /// Set editor text.
     #[serde(rename = "set_editor_text")]
     #[serde(rename_all = "camelCase")]
-    SetEditorText {
-        r#type: String,
-        id: String,
-        text: String,
-    },
+    SetEditorText { r#type: String, id: String, text: String },
 }
 
 impl RpcExtensionUiRequest {
     /// Create a `select` request.
     pub fn select(id: String, title: String, options: Vec<String>) -> Self {
-        Self::Select {
-            r#type: "extension_ui_request".to_string(),
-            id,
-            title,
-            options,
-            timeout: None,
-        }
+        Self::Select { r#type: "extension_ui_request".to_string(), id, title, options, timeout: None }
     }
 
     /// Create a `confirm` request.
     pub fn confirm(id: String, title: String, message: String) -> Self {
-        Self::Confirm {
-            r#type: "extension_ui_request".to_string(),
-            id,
-            title,
-            message,
-            timeout: None,
-        }
+        Self::Confirm { r#type: "extension_ui_request".to_string(), id, title, message, timeout: None }
     }
 
     /// Create a `notify` request (fire-and-forget).
     pub fn notify(id: String, message: String, notify_type: Option<String>) -> Self {
-        Self::Notify {
-            r#type: "extension_ui_request".to_string(),
-            id,
-            message,
-            notify_type,
-        }
+        Self::Notify { r#type: "extension_ui_request".to_string(), id, message, notify_type }
     }
 }
 
@@ -542,23 +502,11 @@ impl RpcExtensionUiRequest {
 #[serde(untagged)]
 pub enum RpcExtensionUiResponse {
     /// Response carrying a string value.
-    Value {
-        r#type: String,
-        id: String,
-        value: String,
-    },
+    Value { r#type: String, id: String, value: String },
     /// Response carrying a confirmation boolean.
-    Confirmed {
-        r#type: String,
-        id: String,
-        confirmed: bool,
-    },
+    Confirmed { r#type: String, id: String, confirmed: bool },
     /// Response indicating cancellation.
-    Cancelled {
-        r#type: String,
-        id: String,
-        cancelled: bool,
-    },
+    Cancelled { r#type: String, id: String, cancelled: bool },
 }
 
 // ============================================================================
@@ -586,11 +534,7 @@ mod tests {
 
     #[test]
     fn test_command_steer_round_trip() {
-        let cmd = RpcCommand::Steer {
-            id: None,
-            message: "stop".to_string(),
-            images: None,
-        };
+        let cmd = RpcCommand::Steer { id: None, message: "stop".to_string(), images: None };
         let json = serde_json::to_string(&cmd).unwrap();
         let back: RpcCommand = serde_json::from_str(&json).unwrap();
         assert_eq!(cmd, back);
@@ -598,11 +542,8 @@ mod tests {
 
     #[test]
     fn test_command_follow_up_round_trip() {
-        let cmd = RpcCommand::FollowUp {
-            id: Some("req_2".to_string()),
-            message: "also do this".to_string(),
-            images: None,
-        };
+        let cmd =
+            RpcCommand::FollowUp { id: Some("req_2".to_string()), message: "also do this".to_string(), images: None };
         let json = serde_json::to_string(&cmd).unwrap();
         let back: RpcCommand = serde_json::from_str(&json).unwrap();
         assert_eq!(cmd, back);
@@ -628,10 +569,7 @@ mod tests {
         assert_eq!(cmd, back);
 
         // Also test without parent_session
-        let cmd2 = RpcCommand::NewSession {
-            id: None,
-            parent_session: None,
-        };
+        let cmd2 = RpcCommand::NewSession { id: None, parent_session: None };
         let json2 = serde_json::to_string(&cmd2).unwrap();
         let back2: RpcCommand = serde_json::from_str(&json2).unwrap();
         assert_eq!(cmd2, back2);
@@ -639,9 +577,7 @@ mod tests {
 
     #[test]
     fn test_command_get_state_round_trip() {
-        let cmd = RpcCommand::GetState {
-            id: Some("req_4".to_string()),
-        };
+        let cmd = RpcCommand::GetState { id: Some("req_4".to_string()) };
         let json = serde_json::to_string(&cmd).unwrap();
         assert!(json.contains("\"type\":\"get_state\""));
         let back: RpcCommand = serde_json::from_str(&json).unwrap();
@@ -650,11 +586,7 @@ mod tests {
 
     #[test]
     fn test_command_set_model_round_trip() {
-        let cmd = RpcCommand::SetModel {
-            id: None,
-            provider: "openai".to_string(),
-            model_id: "gpt-4o".to_string(),
-        };
+        let cmd = RpcCommand::SetModel { id: None, provider: "openai".to_string(), model_id: "gpt-4o".to_string() };
         let json = serde_json::to_string(&cmd).unwrap();
         // Verify camelCase field names
         assert!(json.contains("\"modelId\""));
@@ -681,10 +613,7 @@ mod tests {
 
     #[test]
     fn test_command_set_thinking_level_round_trip() {
-        let cmd = RpcCommand::SetThinkingLevel {
-            id: None,
-            level: "high".to_string(),
-        };
+        let cmd = RpcCommand::SetThinkingLevel { id: None, level: "high".to_string() };
         let json = serde_json::to_string(&cmd).unwrap();
         let back: RpcCommand = serde_json::from_str(&json).unwrap();
         assert_eq!(cmd, back);
@@ -700,10 +629,7 @@ mod tests {
 
     #[test]
     fn test_command_set_steering_mode_round_trip() {
-        let cmd = RpcCommand::SetSteeringMode {
-            id: None,
-            mode: SteeringMode::OneAtATime,
-        };
+        let cmd = RpcCommand::SetSteeringMode { id: None, mode: SteeringMode::OneAtATime };
         let json = serde_json::to_string(&cmd).unwrap();
         let back: RpcCommand = serde_json::from_str(&json).unwrap();
         assert_eq!(cmd, back);
@@ -711,10 +637,7 @@ mod tests {
 
     #[test]
     fn test_command_set_follow_up_mode_round_trip() {
-        let cmd = RpcCommand::SetFollowUpMode {
-            id: Some("req_5".to_string()),
-            mode: SteeringMode::All,
-        };
+        let cmd = RpcCommand::SetFollowUpMode { id: Some("req_5".to_string()), mode: SteeringMode::All };
         let json = serde_json::to_string(&cmd).unwrap();
         let back: RpcCommand = serde_json::from_str(&json).unwrap();
         assert_eq!(cmd, back);
@@ -732,10 +655,7 @@ mod tests {
         assert_eq!(cmd, back);
 
         // Without custom instructions
-        let cmd2 = RpcCommand::Compact {
-            id: None,
-            custom_instructions: None,
-        };
+        let cmd2 = RpcCommand::Compact { id: None, custom_instructions: None };
         let json2 = serde_json::to_string(&cmd2).unwrap();
         let back2: RpcCommand = serde_json::from_str(&json2).unwrap();
         assert_eq!(cmd2, back2);
@@ -743,10 +663,7 @@ mod tests {
 
     #[test]
     fn test_command_set_auto_compaction_round_trip() {
-        let cmd = RpcCommand::SetAutoCompaction {
-            id: None,
-            enabled: true,
-        };
+        let cmd = RpcCommand::SetAutoCompaction { id: None, enabled: true };
         let json = serde_json::to_string(&cmd).unwrap();
         let back: RpcCommand = serde_json::from_str(&json).unwrap();
         assert_eq!(cmd, back);
@@ -754,10 +671,7 @@ mod tests {
 
     #[test]
     fn test_command_set_auto_retry_round_trip() {
-        let cmd = RpcCommand::SetAutoRetry {
-            id: None,
-            enabled: false,
-        };
+        let cmd = RpcCommand::SetAutoRetry { id: None, enabled: false };
         let json = serde_json::to_string(&cmd).unwrap();
         let back: RpcCommand = serde_json::from_str(&json).unwrap();
         assert_eq!(cmd, back);
@@ -765,9 +679,7 @@ mod tests {
 
     #[test]
     fn test_command_abort_retry_round_trip() {
-        let cmd = RpcCommand::AbortRetry {
-            id: Some("req_7".to_string()),
-        };
+        let cmd = RpcCommand::AbortRetry { id: Some("req_7".to_string()) };
         let json = serde_json::to_string(&cmd).unwrap();
         let back: RpcCommand = serde_json::from_str(&json).unwrap();
         assert_eq!(cmd, back);
@@ -775,10 +687,7 @@ mod tests {
 
     #[test]
     fn test_command_bash_round_trip() {
-        let cmd = RpcCommand::Bash {
-            id: None,
-            command: "ls -la".to_string(),
-        };
+        let cmd = RpcCommand::Bash { id: None, command: "ls -la".to_string() };
         let json = serde_json::to_string(&cmd).unwrap();
         let back: RpcCommand = serde_json::from_str(&json).unwrap();
         assert_eq!(cmd, back);
@@ -786,9 +695,7 @@ mod tests {
 
     #[test]
     fn test_command_abort_bash_round_trip() {
-        let cmd = RpcCommand::AbortBash {
-            id: Some("req_8".to_string()),
-        };
+        let cmd = RpcCommand::AbortBash { id: Some("req_8".to_string()) };
         let json = serde_json::to_string(&cmd).unwrap();
         let back: RpcCommand = serde_json::from_str(&json).unwrap();
         assert_eq!(cmd, back);
@@ -814,10 +721,7 @@ mod tests {
         assert_eq!(cmd, back);
 
         // Without output path
-        let cmd2 = RpcCommand::ExportHtml {
-            id: None,
-            output_path: None,
-        };
+        let cmd2 = RpcCommand::ExportHtml { id: None, output_path: None };
         let json2 = serde_json::to_string(&cmd2).unwrap();
         let back2: RpcCommand = serde_json::from_str(&json2).unwrap();
         assert_eq!(cmd2, back2);
@@ -837,10 +741,7 @@ mod tests {
 
     #[test]
     fn test_command_fork_round_trip() {
-        let cmd = RpcCommand::Fork {
-            id: Some("req_11".to_string()),
-            entry_id: "abc12345".to_string(),
-        };
+        let cmd = RpcCommand::Fork { id: Some("req_11".to_string()), entry_id: "abc12345".to_string() };
         let json = serde_json::to_string(&cmd).unwrap();
         assert!(json.contains("\"entryId\""));
         let back: RpcCommand = serde_json::from_str(&json).unwrap();
@@ -849,9 +750,7 @@ mod tests {
 
     #[test]
     fn test_command_clone_round_trip() {
-        let cmd = RpcCommand::Clone {
-            id: Some("req_12".to_string()),
-        };
+        let cmd = RpcCommand::Clone { id: Some("req_12".to_string()) };
         let json = serde_json::to_string(&cmd).unwrap();
         assert!(json.contains("\"type\":\"clone\""));
         let back: RpcCommand = serde_json::from_str(&json).unwrap();
@@ -876,10 +775,7 @@ mod tests {
 
     #[test]
     fn test_command_set_session_name_round_trip() {
-        let cmd = RpcCommand::SetSessionName {
-            id: None,
-            name: "My Session".to_string(),
-        };
+        let cmd = RpcCommand::SetSessionName { id: None, name: "My Session".to_string() };
         let json = serde_json::to_string(&cmd).unwrap();
         let back: RpcCommand = serde_json::from_str(&json).unwrap();
         assert_eq!(cmd, back);
@@ -932,11 +828,8 @@ mod tests {
 
     #[test]
     fn test_camel_case_fields_in_set_model() {
-        let cmd = RpcCommand::SetModel {
-            id: None,
-            provider: "anthropic".to_string(),
-            model_id: "claude-3-opus".to_string(),
-        };
+        let cmd =
+            RpcCommand::SetModel { id: None, provider: "anthropic".to_string(), model_id: "claude-3-opus".to_string() };
         let json = serde_json::to_string(&cmd).unwrap();
         assert!(json.contains("\"modelId\""), "camelCase modelId: {json}");
         assert!(!json.contains("\"model_id\""), "no snake_case model_id: {json}");
@@ -959,11 +852,8 @@ mod tests {
 
     #[test]
     fn test_extension_ui_request_confirm_round_trip() {
-        let req = RpcExtensionUiRequest::confirm(
-            "ui_2".to_string(),
-            "Confirm?".to_string(),
-            "Are you sure?".to_string(),
-        );
+        let req =
+            RpcExtensionUiRequest::confirm("ui_2".to_string(), "Confirm?".to_string(), "Are you sure?".to_string());
         let json = serde_json::to_string(&req).unwrap();
         let back: RpcExtensionUiRequest = serde_json::from_str(&json).unwrap();
         assert_eq!(req, back);
@@ -971,11 +861,7 @@ mod tests {
 
     #[test]
     fn test_extension_ui_request_notify_round_trip() {
-        let req = RpcExtensionUiRequest::notify(
-            "ui_3".to_string(),
-            "Hello".to_string(),
-            Some("info".to_string()),
-        );
+        let req = RpcExtensionUiRequest::notify("ui_3".to_string(), "Hello".to_string(), Some("info".to_string()));
         let json = serde_json::to_string(&req).unwrap();
         assert!(json.contains("\"notifyType\""));
         let back: RpcExtensionUiRequest = serde_json::from_str(&json).unwrap();
@@ -1055,11 +941,7 @@ mod tests {
             name: "help".to_string(),
             description: Some("Show help".to_string()),
             source: CommandSource::Prompt,
-            source_info: RpcSourceInfo {
-                name: "builtin".to_string(),
-                extension_id: None,
-                path: None,
-            },
+            source_info: RpcSourceInfo { name: "builtin".to_string(), extension_id: None, path: None },
         };
         let json = serde_json::to_string(&cmd).unwrap();
         assert!(json.contains("\"name\""));
@@ -1081,11 +963,7 @@ mod tests {
         assert!(!e.success);
         assert_eq!(e.error, Some("msg".to_string()));
 
-        let sd = RpcResponse::success_with_data(
-            None,
-            "cmd",
-            serde_json::json!({"key": "val"}),
-        );
+        let sd = RpcResponse::success_with_data(None, "cmd", serde_json::json!({"key": "val"}));
         assert!(sd.success);
         assert_eq!(sd.data, Some(serde_json::json!({"key": "val"})));
     }
@@ -1141,7 +1019,6 @@ mod tests {
         assert_eq!(cmd, back);
     }
 }
-
 
 // ============================================================================
 // Bash Result

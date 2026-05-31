@@ -2,10 +2,10 @@
 //!
 //! Mirrors `packages/coding-agent/src/modes/interactive/components/user-message.ts`
 
+use crate::Theme;
 use pi_tui_core::components::spacer::Spacer;
 use pi_tui_core::components::text::Text;
 use pi_tui_core::{Component, Container};
-use crate::Theme;
 
 /// Renders a user message in a styled container with foreground coloring.
 pub struct UserMessage {

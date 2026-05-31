@@ -4,7 +4,7 @@
 use crate::io::{DefaultFileSystem, FileSystem, IoError};
 use crate::tools::path_utils::resolve_to_cwd;
 use crate::tools::truncate::{
-    self, format_size, TruncationOptions, TruncationResult, DEFAULT_MAX_BYTES, DEFAULT_MAX_LINES,
+    self, DEFAULT_MAX_BYTES, DEFAULT_MAX_LINES, TruncationOptions, TruncationResult, format_size,
 };
 use std::path::Path;
 
@@ -75,11 +75,7 @@ pub async fn execute_read(input: &ReadInput, cwd: &Path) -> Result<ReadResult, R
 }
 
 /// Read a file with a custom filesystem (for testing).
-pub async fn execute_read_with(
-    input: &ReadInput,
-    cwd: &Path,
-    fs: &dyn FileSystem,
-) -> Result<ReadResult, ReadError> {
+pub async fn execute_read_with(input: &ReadInput, cwd: &Path, fs: &dyn FileSystem) -> Result<ReadResult, ReadError> {
     let absolute_path = resolve_to_cwd(&input.path, cwd);
 
     tracing::debug!(path = %absolute_path.display(), offset = ?input.offset, limit = ?input.limit, "read::execute");
@@ -122,10 +118,7 @@ pub async fn execute_read_with(
     let start_line_display = start_line + 1;
 
     if start_line >= all_lines.len() {
-        return Err(ReadError::OffsetBeyondEnd(
-            input.offset.unwrap_or(1),
-            all_lines.len(),
-        ));
+        return Err(ReadError::OffsetBeyondEnd(input.offset.unwrap_or(1), all_lines.len()));
     }
 
     let selected_content: String = if let Some(limit) = input.limit {
@@ -136,10 +129,7 @@ pub async fn execute_read_with(
     };
 
     // Apply truncation.
-    let trunc_opts = TruncationOptions {
-        max_lines: DEFAULT_MAX_LINES,
-        max_bytes: DEFAULT_MAX_BYTES,
-    };
+    let trunc_opts = TruncationOptions { max_lines: DEFAULT_MAX_LINES, max_bytes: DEFAULT_MAX_BYTES };
     let trunc = truncate::truncate_head(&selected_content, trunc_opts);
 
     let output_text = if trunc.first_line_exceeds_limit {
@@ -180,10 +170,7 @@ pub async fn execute_read_with(
         if start_line + user_limit < all_lines.len() {
             let remaining = all_lines.len() - (start_line + user_limit);
             let next_offset = start_line + user_limit + 1;
-            format!(
-                "{}\n\n[{} more lines in file. Use offset={} to continue.]",
-                trunc.content, remaining, next_offset
-            )
+            format!("{}\n\n[{} more lines in file. Use offset={} to continue.]", trunc.content, remaining, next_offset)
         } else {
             trunc.content.clone()
         }
@@ -232,17 +219,10 @@ mod tests {
         let mut mock = MockFileSystem::new();
         mock.add_file(Path::new("/test/cwd/file.txt"), "hello\nworld\nfoo\nbar");
         let cwd = test_cwd();
-        let result = execute_read_with(
-            &ReadInput {
-                path: "file.txt".to_string(),
-                offset: None,
-                limit: None,
-            },
-            &cwd,
-            &mock,
-        )
-        .await
-        .unwrap();
+        let result =
+            execute_read_with(&ReadInput { path: "file.txt".to_string(), offset: None, limit: None }, &cwd, &mock)
+                .await
+                .unwrap();
         assert!(result.content.contains("hello"));
         assert!(!result.is_image);
     }
@@ -252,11 +232,7 @@ mod tests {
         let mock = MockFileSystem::new();
         let cwd = test_cwd();
         let result = execute_read_with(
-            &ReadInput {
-                path: "nonexistent.txt".to_string(),
-                offset: None,
-                limit: None,
-            },
+            &ReadInput { path: "nonexistent.txt".to_string(), offset: None, limit: None },
             &cwd,
             &mock,
         )
@@ -273,17 +249,10 @@ mod tests {
         let mut mock = MockFileSystem::new();
         mock.add_file(Path::new("/test/cwd/image.png"), "fake-png-data");
         let cwd = test_cwd();
-        let result = execute_read_with(
-            &ReadInput {
-                path: "image.png".to_string(),
-                offset: None,
-                limit: None,
-            },
-            &cwd,
-            &mock,
-        )
-        .await
-        .unwrap();
+        let result =
+            execute_read_with(&ReadInput { path: "image.png".to_string(), offset: None, limit: None }, &cwd, &mock)
+                .await
+                .unwrap();
         assert!(result.is_image);
         assert_eq!(result.image_mime_type.unwrap(), "image/png");
     }
@@ -291,17 +260,10 @@ mod tests {
     #[tokio::test]
     async fn test_read_with_offset() {
         let mut mock = MockFileSystem::new();
-        mock.add_file(
-            Path::new("/test/cwd/lines.txt"),
-            "line1\nline2\nline3\nline4\nline5",
-        );
+        mock.add_file(Path::new("/test/cwd/lines.txt"), "line1\nline2\nline3\nline4\nline5");
         let cwd = test_cwd();
         let result = execute_read_with(
-            &ReadInput {
-                path: "lines.txt".to_string(),
-                offset: Some(3),
-                limit: Some(2),
-            },
+            &ReadInput { path: "lines.txt".to_string(), offset: Some(3), limit: Some(2) },
             &cwd,
             &mock,
         )
@@ -317,16 +279,9 @@ mod tests {
         let mut mock = MockFileSystem::new();
         mock.add_file(Path::new("/test/cwd/short.txt"), "a\nb");
         let cwd = test_cwd();
-        let result = execute_read_with(
-            &ReadInput {
-                path: "short.txt".to_string(),
-                offset: Some(10),
-                limit: None,
-            },
-            &cwd,
-            &mock,
-        )
-        .await;
+        let result =
+            execute_read_with(&ReadInput { path: "short.txt".to_string(), offset: Some(10), limit: None }, &cwd, &mock)
+                .await;
         assert!(result.is_err());
     }
 }

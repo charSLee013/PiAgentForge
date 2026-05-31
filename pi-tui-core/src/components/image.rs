@@ -43,12 +43,8 @@ impl Image {
         dimensions: Option<ImageDimensions>,
     ) -> Self {
         let dims = dimensions.unwrap_or_else(|| {
-            terminal_image::get_image_dimensions(&base64_data, &mime_type).unwrap_or(
-                ImageDimensions {
-                    width_px: 800,
-                    height_px: 600,
-                },
-            )
+            terminal_image::get_image_dimensions(&base64_data, &mime_type)
+                .unwrap_or(ImageDimensions { width_px: 800, height_px: 600 })
         });
 
         Self {
@@ -89,27 +85,16 @@ impl Component for Image {
             }
         }
 
-        let max_width = self
-            .max_width_cells
-            .map(|m| m as usize)
-            .unwrap_or(60.min((width as usize).saturating_sub(2)))
-            .max(1);
-        let default_max_height =
-            (max_width as f64 * 18.0 / 9.0).ceil() as usize;
-        let max_height = self
-            .max_height_cells
-            .map(|m| m as usize)
-            .unwrap_or(default_max_height)
-            .max(1);
+        let max_width =
+            self.max_width_cells.map(|m| m as usize).unwrap_or(60.min((width as usize).saturating_sub(2))).max(1);
+        let default_max_height = (max_width as f64 * 18.0 / 9.0).ceil() as usize;
+        let max_height = self.max_height_cells.map(|m| m as usize).unwrap_or(default_max_height).max(1);
 
         let caps = terminal_image::get_capabilities();
         let lines: Vec<String> = if caps.images.is_some() {
             // Auto-allocate image ID for Kitty if not yet set
-            if caps.images == Some(terminal_image::ImageProtocol::Kitty)
-                && self.image_id.get().is_none()
-            {
-                self.image_id
-                    .set(Some(terminal_image::allocate_image_id()));
+            if caps.images == Some(terminal_image::ImageProtocol::Kitty) && self.image_id.get().is_none() {
+                self.image_id.set(Some(terminal_image::allocate_image_id()));
             }
 
             let result = terminal_image::render_image(
@@ -146,11 +131,7 @@ impl Component for Image {
                             lines.push(String::new());
                         }
                         let row_offset = rendered.rows.saturating_sub(1);
-                        let move_up = if row_offset > 0 {
-                            format!("\x1b[{}A", row_offset)
-                        } else {
-                            String::new()
-                        };
+                        let move_up = if row_offset > 0 { format!("\x1b[{}A", row_offset) } else { String::new() };
                         lines.push(move_up + &rendered.sequence);
                         lines
                     }
@@ -165,11 +146,8 @@ impl Component for Image {
                 }
             }
         } else {
-            let fallback = terminal_image::image_fallback(
-                &self.mime_type,
-                Some(&self.dimensions),
-                self.filename.as_deref(),
-            );
+            let fallback =
+                terminal_image::image_fallback(&self.mime_type, Some(&self.dimensions), self.filename.as_deref());
             vec![(self.theme.fallback_color)(&fallback)]
         };
 
@@ -185,9 +163,7 @@ impl Component for Image {
             lines
         };
 
-        self.cached_lines
-            .borrow_mut()
-            .replace((padded.clone(), width));
+        self.cached_lines.borrow_mut().replace((padded.clone(), width));
         padded
     }
 
@@ -201,9 +177,7 @@ mod tests {
     use super::*;
 
     fn test_theme() -> ImageTheme {
-        ImageTheme {
-            fallback_color: Box::new(|s| s.to_string()),
-        }
+        ImageTheme { fallback_color: Box::new(|s| s.to_string()) }
     }
 
     #[test]
@@ -212,14 +186,8 @@ mod tests {
             String::new(),
             "image/png".to_string(),
             test_theme(),
-            ImageOptions {
-                filename: Some("test.png".to_string()),
-                ..Default::default()
-            },
-            Some(ImageDimensions {
-                width_px: 800,
-                height_px: 600,
-            }),
+            ImageOptions { filename: Some("test.png".to_string()), ..Default::default() },
+            Some(ImageDimensions { width_px: 800, height_px: 600 }),
         );
         let lines = img.render(80);
         assert!(!lines.is_empty());
@@ -231,13 +199,7 @@ mod tests {
 
     #[test]
     fn test_image_fallback_minimal() {
-        let img = Image::new(
-            String::new(),
-            "image/jpeg".to_string(),
-            test_theme(),
-            ImageOptions::default(),
-            None,
-        );
+        let img = Image::new(String::new(), "image/jpeg".to_string(), test_theme(), ImageOptions::default(), None);
         let lines = img.render(80);
         assert!(!lines.is_empty());
         assert!(lines[0].contains("[Image:"));
@@ -245,13 +207,7 @@ mod tests {
 
     #[test]
     fn test_image_invalidate_clears_cache() {
-        let mut img = Image::new(
-            String::new(),
-            "image/png".to_string(),
-            test_theme(),
-            ImageOptions::default(),
-            None,
-        );
+        let mut img = Image::new(String::new(), "image/png".to_string(), test_theme(), ImageOptions::default(), None);
         let first = img.render(80);
         img.invalidate();
         let second = img.render(80);
@@ -270,14 +226,8 @@ mod tests {
             "AAAA".to_string(),
             "image/png".to_string(),
             test_theme(),
-            ImageOptions {
-                filename: Some("test.png".to_string()),
-                ..Default::default()
-            },
-            Some(ImageDimensions {
-                width_px: 800,
-                height_px: 600,
-            }),
+            ImageOptions { filename: Some("test.png".to_string()), ..Default::default() },
+            Some(ImageDimensions { width_px: 800, height_px: 600 }),
         );
         let lines = img.render(80);
         assert!(!lines.is_empty());
@@ -299,14 +249,8 @@ mod tests {
             "AAAA".to_string(),
             "image/png".to_string(),
             test_theme(),
-            ImageOptions {
-                filename: Some("test.png".to_string()),
-                ..Default::default()
-            },
-            Some(ImageDimensions {
-                width_px: 800,
-                height_px: 600,
-            }),
+            ImageOptions { filename: Some("test.png".to_string()), ..Default::default() },
+            Some(ImageDimensions { width_px: 800, height_px: 600 }),
         );
         let lines = img.render(80);
         assert!(!lines.is_empty());
@@ -332,10 +276,7 @@ mod tests {
             "image/png".to_string(),
             test_theme(),
             ImageOptions::default(),
-            Some(ImageDimensions {
-                width_px: 800,
-                height_px: 600,
-            }),
+            Some(ImageDimensions { width_px: 800, height_px: 600 }),
         );
 
         // Before render, no image_id
@@ -370,10 +311,7 @@ mod tests {
             "image/png".to_string(),
             test_theme(),
             ImageOptions::default(),
-            Some(ImageDimensions {
-                width_px: 800,
-                height_px: 600,
-            }),
+            Some(ImageDimensions { width_px: 800, height_px: 600 }),
         );
         let first = img.render(80);
         let second = img.render(80);
@@ -388,10 +326,7 @@ mod tests {
             "image/png".to_string(),
             test_theme(),
             ImageOptions::default(),
-            Some(ImageDimensions {
-                width_px: 800,
-                height_px: 600,
-            }),
+            Some(ImageDimensions { width_px: 800, height_px: 600 }),
         );
         let first = img.render(80);
         let second = img.render(120);
@@ -408,15 +343,8 @@ mod tests {
             String::new(),
             "image/png".to_string(),
             test_theme(),
-            ImageOptions {
-                max_width_cells: Some(40),
-                max_height_cells: Some(10),
-                ..Default::default()
-            },
-            Some(ImageDimensions {
-                width_px: 800,
-                height_px: 600,
-            }),
+            ImageOptions { max_width_cells: Some(40), max_height_cells: Some(10), ..Default::default() },
+            Some(ImageDimensions { width_px: 800, height_px: 600 }),
         );
         let lines = img.render(80);
         assert!(lines.len() >= 10);

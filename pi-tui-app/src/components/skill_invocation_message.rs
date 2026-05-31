@@ -4,10 +4,10 @@
 //!
 //! Mirrors `packages/coding-agent/src/modes/interactive/components/skill-invocation-message.ts`
 
+use crate::Theme;
 use pi_tui_core::components::spacer::Spacer;
 use pi_tui_core::components::text::Text;
 use pi_tui_core::{Component, Container};
-use crate::Theme;
 
 /// Renders a skill invocation message with collapsed/expanded state.
 ///
@@ -37,11 +37,7 @@ impl SkillInvocationMessage {
 
             let trimmed = content.trim();
             if !trimmed.is_empty() {
-                inner.add(Text::with_padding(
-                    theme.ansi(&theme.text, trimmed),
-                    1,
-                    0,
-                ));
+                inner.add(Text::with_padding(theme.ansi(&theme.text, trimmed), 1, 0));
             }
         } else {
             let line = format!(
@@ -74,12 +70,7 @@ mod tests {
     #[test]
     fn test_skill_invocation_expanded() {
         let theme = Theme::dark();
-        let msg = SkillInvocationMessage::new(
-            "ctf-web".into(),
-            "Run SQLMap on target".into(),
-            true,
-            &theme,
-        );
+        let msg = SkillInvocationMessage::new("ctf-web".into(), "Run SQLMap on target".into(), true, &theme);
         let lines = msg.render(80);
         assert!(lines.iter().any(|l| l.contains("[skill]")));
         assert!(lines.iter().any(|l| l.contains("ctf-web")));
@@ -89,12 +80,7 @@ mod tests {
     #[test]
     fn test_skill_invocation_collapsed() {
         let theme = Theme::dark();
-        let msg = SkillInvocationMessage::new(
-            "ctf-reverse".into(),
-            "Analyze binary".into(),
-            false,
-            &theme,
-        );
+        let msg = SkillInvocationMessage::new("ctf-reverse".into(), "Analyze binary".into(), false, &theme);
         let lines = msg.render(80);
         assert!(lines.iter().any(|l| l.contains("[skill]")));
         assert!(lines.iter().any(|l| l.contains("ctf-reverse")));

@@ -52,9 +52,7 @@ pub fn parse_frontmatter(content: &str) -> Result<(SkillFrontmatter, String), St
     let rest = &content[3..]; // skip opening `---`
 
     // Find "\n---" as the closing delimiter marker
-    let close_pos = rest
-        .find("\n---")
-        .ok_or_else(|| String::from("Unclosed frontmatter: missing closing `---`"))?;
+    let close_pos = rest.find("\n---").ok_or_else(|| String::from("Unclosed frontmatter: missing closing `---`"))?;
 
     // close_pos is the index of `\n` before `---` in `rest`.
     // yaml is from rest[0..close_pos] (trim leading \n).
@@ -63,8 +61,8 @@ pub fn parse_frontmatter(content: &str) -> Result<(SkillFrontmatter, String), St
     let body_start = close_pos + 4; // skip `\n---` (4 chars)
     let body = rest[body_start..].trim().to_string();
 
-    let frontmatter: SkillFrontmatter = serde_yaml::from_str(yaml_str)
-        .map_err(|e| format!("Invalid frontmatter YAML: {e}"))?;
+    let frontmatter: SkillFrontmatter =
+        serde_yaml::from_str(yaml_str).map_err(|e| format!("Invalid frontmatter YAML: {e}"))?;
 
     Ok((frontmatter, body))
 }
@@ -77,13 +75,8 @@ pub fn validate_name(name: &str) -> Result<(), String> {
     if name.len() > MAX_NAME_LENGTH {
         return Err(format!("Skill name too long (max {MAX_NAME_LENGTH} chars)"));
     }
-    if !name
-        .chars()
-        .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-')
-    {
-        return Err(
-            "Skill name must contain only lowercase letters, digits, and hyphens".into(),
-        );
+    if !name.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-') {
+        return Err("Skill name must contain only lowercase letters, digits, and hyphens".into());
     }
     if name.starts_with('-') || name.ends_with('-') {
         return Err("Skill name must not start or end with a hyphen".into());
@@ -133,16 +126,8 @@ pub fn discover_skills(extra_paths: &[PathBuf]) -> LoadSkillsResult {
 }
 
 /// Load all `.md` files from a single directory (non-recursive).
-fn load_skills_from_dir(
-    dir: &Path,
-    result: &mut LoadSkillsResult,
-    seen_names: &mut std::collections::HashSet<String>,
-) {
-    let dir_name = dir
-        .file_stem()
-        .and_then(|s| s.to_str())
-        .unwrap_or("")
-        .to_string();
+fn load_skills_from_dir(dir: &Path, result: &mut LoadSkillsResult, seen_names: &mut std::collections::HashSet<String>) {
+    let dir_name = dir.file_stem().and_then(|s| s.to_str()).unwrap_or("").to_string();
 
     let entries = match std::fs::read_dir(dir) {
         Ok(e) => e,
@@ -169,9 +154,7 @@ fn load_skills_from_dir(
         let (frontmatter, _body) = match parse_frontmatter(&content) {
             Ok(f) => f,
             Err(e) => {
-                result
-                    .errors
-                    .push(format!("Frontmatter error in {}: {e}", path.display()));
+                result.errors.push(format!("Frontmatter error in {}: {e}", path.display()));
                 continue;
             }
         };
@@ -209,10 +192,7 @@ fn load_skills_from_dir(
 /// Output: `<available_skills><skill>...</skill></available_skills>`
 /// Skills with `disable_model_invocation: true` are excluded.
 pub fn format_skills_for_prompt(skills: &[Skill]) -> String {
-    let enabled: Vec<&Skill> = skills
-        .iter()
-        .filter(|s| !s.disable_model_invocation)
-        .collect();
+    let enabled: Vec<&Skill> = skills.iter().filter(|s| !s.disable_model_invocation).collect();
 
     if enabled.is_empty() {
         return String::new();
@@ -299,15 +279,13 @@ Body"#;
 
     #[test]
     fn test_format_skills_for_prompt() {
-        let skills = vec![
-            Skill {
-                name: "test".into(),
-                description: "A test skill".into(),
-                file_path: PathBuf::from("/tmp/skills/test/SKILL.md"),
-                base_dir: PathBuf::from("/tmp/skills"),
-                disable_model_invocation: false,
-            },
-        ];
+        let skills = vec![Skill {
+            name: "test".into(),
+            description: "A test skill".into(),
+            file_path: PathBuf::from("/tmp/skills/test/SKILL.md"),
+            base_dir: PathBuf::from("/tmp/skills"),
+            disable_model_invocation: false,
+        }];
         let xml = format_skills_for_prompt(&skills);
         assert!(xml.contains("<available_skills>"));
         assert!(xml.contains("<name>test</name>"));

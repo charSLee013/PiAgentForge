@@ -15,19 +15,11 @@ pub struct TruncatedText {
 
 impl TruncatedText {
     pub fn new(text: String) -> Self {
-        Self {
-            text,
-            padding_x: 0,
-            padding_y: 0,
-        }
+        Self { text, padding_x: 0, padding_y: 0 }
     }
 
     pub fn with_padding(text: String, padding_x: u16, padding_y: u16) -> Self {
-        Self {
-            text,
-            padding_x,
-            padding_y,
-        }
+        Self { text, padding_x, padding_y }
     }
 
     pub fn set_text(&mut self, text: String) {

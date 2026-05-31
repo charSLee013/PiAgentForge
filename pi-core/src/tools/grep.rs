@@ -7,8 +7,7 @@
 use crate::io::{DefaultFileSystem, FileSystem, IoError};
 use crate::tools::path_utils::resolve_to_cwd;
 use crate::tools::truncate::{
-    self, format_size, truncate_line, TruncationOptions, TruncationResult, DEFAULT_MAX_BYTES,
-    GREP_MAX_LINE_LENGTH,
+    self, DEFAULT_MAX_BYTES, GREP_MAX_LINE_LENGTH, TruncationOptions, TruncationResult, format_size, truncate_line,
 };
 use globset::{Glob, GlobSetBuilder};
 use regex::Regex;
@@ -95,11 +94,7 @@ pub async fn execute_grep(input: &GrepInput, cwd: &Path) -> Result<GrepResult, G
 }
 
 /// Search file contents with a custom filesystem (for testing).
-pub async fn execute_grep_with(
-    input: &GrepInput,
-    cwd: &Path,
-    fs: &dyn FileSystem,
-) -> Result<GrepResult, GrepError> {
+pub async fn execute_grep_with(input: &GrepInput, cwd: &Path, fs: &dyn FileSystem) -> Result<GrepResult, GrepError> {
     let search_path = resolve_to_cwd(input.path.as_deref().unwrap_or("."), cwd);
 
     tracing::debug!(
@@ -158,16 +153,9 @@ pub async fn execute_grep_with(
 
         // Get relative path for display.
         let relative_path = if is_directory {
-            file_path
-                .strip_prefix(&search_path)
-                .unwrap_or(file_path)
-                .display()
-                .to_string()
+            file_path.strip_prefix(&search_path).unwrap_or(file_path).display().to_string()
         } else {
-            file_path
-                .file_name()
-                .map(|s| s.to_string_lossy().to_string())
-                .unwrap_or_default()
+            file_path.file_name().map(|s| s.to_string_lossy().to_string()).unwrap_or_default()
         };
 
         // Search each line.
@@ -222,10 +210,7 @@ pub async fn execute_grep_with(
     let raw_output = output_lines.join("\n");
 
     // Apply byte truncation.
-    let trunc_opts = TruncationOptions {
-        max_lines: usize::MAX,
-        max_bytes: DEFAULT_MAX_BYTES,
-    };
+    let trunc_opts = TruncationOptions { max_lines: usize::MAX, max_bytes: DEFAULT_MAX_BYTES };
     let trunc = truncate::truncate_head(&raw_output, trunc_opts);
 
     let mut final_output = trunc.content.clone();
@@ -244,10 +229,8 @@ pub async fn execute_grep_with(
         notices.push(format!("{} limit reached", format_size(DEFAULT_MAX_BYTES)));
     }
     if lines_truncated {
-        notices.push(format!(
-            "Some lines truncated to {} chars. Use read tool to see full lines",
-            GREP_MAX_LINE_LENGTH
-        ));
+        notices
+            .push(format!("Some lines truncated to {} chars. Use read tool to see full lines", GREP_MAX_LINE_LENGTH));
     }
     if !notices.is_empty() {
         final_output.push_str(&format!("\n\n[{}]", notices.join(". ")));
@@ -256,11 +239,7 @@ pub async fn execute_grep_with(
     Ok(GrepResult {
         output: final_output,
         truncation: details_truncation,
-        match_limit_reached: if match_limit_reached {
-            Some(effective_limit)
-        } else {
-            None
-        },
+        match_limit_reached: if match_limit_reached { Some(effective_limit) } else { None },
         lines_truncated,
     })
 }
@@ -336,12 +315,8 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let dir_path = dir.path().to_path_buf();
 
-        fs.write(&dir_path.join("file1.txt"), b"hello world\nfoo bar\nbaz qux")
-            .await
-            .unwrap();
-        fs.write(&dir_path.join("file2.txt"), b"abc hello\ndef ghi\njkl mno")
-            .await
-            .unwrap();
+        fs.write(&dir_path.join("file1.txt"), b"hello world\nfoo bar\nbaz qux").await.unwrap();
+        fs.write(&dir_path.join("file2.txt"), b"abc hello\ndef ghi\njkl mno").await.unwrap();
 
         let result = execute_grep(
             &GrepInput {
@@ -366,9 +341,7 @@ mod tests {
     async fn test_grep_no_matches() {
         let fs = DefaultFileSystem;
         let dir = tempfile::tempdir().unwrap();
-        fs.write(&dir.path().join("test.txt"), b"hello world")
-            .await
-            .unwrap();
+        fs.write(&dir.path().join("test.txt"), b"hello world").await.unwrap();
 
         let result = execute_grep(
             &GrepInput {
@@ -412,9 +385,7 @@ mod tests {
     async fn test_grep_case_insensitive() {
         let fs = DefaultFileSystem;
         let dir = tempfile::tempdir().unwrap();
-        fs.write(&dir.path().join("test.txt"), b"HELLO world")
-            .await
-            .unwrap();
+        fs.write(&dir.path().join("test.txt"), b"HELLO world").await.unwrap();
 
         let result = execute_grep(
             &GrepInput {
@@ -438,9 +409,7 @@ mod tests {
     async fn test_grep_literal_pattern() {
         let fs = DefaultFileSystem;
         let dir = tempfile::tempdir().unwrap();
-        fs.write(&dir.path().join("test.txt"), b"hello.world")
-            .await
-            .unwrap();
+        fs.write(&dir.path().join("test.txt"), b"hello.world").await.unwrap();
 
         let result = execute_grep(
             &GrepInput {

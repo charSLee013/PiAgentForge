@@ -1,7 +1,8 @@
-pub mod types;
-pub mod event_stream;
 pub mod api_registry;
+pub mod event_stream;
 pub mod stream;
+pub mod thinking;
+pub mod types;
 
 /// Test utilities for mocking LLM streams.
 ///

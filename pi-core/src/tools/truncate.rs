@@ -63,10 +63,7 @@ pub struct TruncationOptions {
 
 impl Default for TruncationOptions {
     fn default() -> Self {
-        Self {
-            max_lines: DEFAULT_MAX_LINES,
-            max_bytes: DEFAULT_MAX_BYTES,
-        }
+        Self { max_lines: DEFAULT_MAX_LINES, max_bytes: DEFAULT_MAX_BYTES }
     }
 }
 
@@ -302,10 +299,7 @@ mod tests {
 
     #[test]
     fn test_truncate_head_no_truncation() {
-        let opts = TruncationOptions {
-            max_lines: 10,
-            max_bytes: 10_000,
-        };
+        let opts = TruncationOptions { max_lines: 10, max_bytes: 10_000 };
         let result = truncate_head("hello\nworld", opts);
         assert!(!result.truncated);
         assert_eq!(result.content, "hello\nworld");
@@ -313,10 +307,7 @@ mod tests {
 
     #[test]
     fn test_truncate_head_line_limit() {
-        let opts = TruncationOptions {
-            max_lines: 2,
-            max_bytes: 10_000,
-        };
+        let opts = TruncationOptions { max_lines: 2, max_bytes: 10_000 };
         let result = truncate_head("a\nb\nc\nd\ne", opts);
         assert!(result.truncated);
         assert_eq!(result.truncated_by, TruncatedBy::Lines);
@@ -327,10 +318,7 @@ mod tests {
 
     #[test]
     fn test_truncate_head_byte_limit() {
-        let opts = TruncationOptions {
-            max_lines: 100,
-            max_bytes: 5,
-        };
+        let opts = TruncationOptions { max_lines: 100, max_bytes: 5 };
         let result = truncate_head("hello\nworld", opts);
         assert!(result.truncated);
         assert_eq!(result.truncated_by, TruncatedBy::Bytes);
@@ -339,10 +327,7 @@ mod tests {
 
     #[test]
     fn test_truncate_head_first_line_exceeds_limit() {
-        let opts = TruncationOptions {
-            max_lines: 100,
-            max_bytes: 3,
-        };
+        let opts = TruncationOptions { max_lines: 100, max_bytes: 3 };
         let result = truncate_head("hello\nworld", opts);
         assert!(result.truncated);
         assert!(result.first_line_exceeds_limit);
@@ -351,10 +336,7 @@ mod tests {
 
     #[test]
     fn test_truncate_tail_no_truncation() {
-        let opts = TruncationOptions {
-            max_lines: 10,
-            max_bytes: 10_000,
-        };
+        let opts = TruncationOptions { max_lines: 10, max_bytes: 10_000 };
         let result = truncate_tail("hello\nworld", opts);
         assert!(!result.truncated);
         assert_eq!(result.content, "hello\nworld");
@@ -362,10 +344,7 @@ mod tests {
 
     #[test]
     fn test_truncate_tail_line_limit() {
-        let opts = TruncationOptions {
-            max_lines: 2,
-            max_bytes: 10_000,
-        };
+        let opts = TruncationOptions { max_lines: 2, max_bytes: 10_000 };
         let result = truncate_tail("a\nb\nc\nd\ne", opts);
         assert!(result.truncated);
         assert_eq!(result.truncated_by, TruncatedBy::Lines);
@@ -375,10 +354,7 @@ mod tests {
 
     #[test]
     fn test_truncate_tail_byte_limit() {
-        let opts = TruncationOptions {
-            max_lines: 100,
-            max_bytes: 10,
-        };
+        let opts = TruncationOptions { max_lines: 100, max_bytes: 10 };
         let result = truncate_tail("hello\nworld\nfoo", opts);
         assert!(result.truncated);
         assert_eq!(result.truncated_by, TruncatedBy::Bytes);

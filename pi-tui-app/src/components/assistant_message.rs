@@ -5,11 +5,11 @@
 //!
 //! Mirrors `packages/coding-agent/src/modes/interactive/components/assistant-message.ts`
 
+use crate::Theme;
 use pi_tui_core::components::markdown::Markdown;
 use pi_tui_core::components::spacer::Spacer;
 use pi_tui_core::components::text::Text;
 use pi_tui_core::{Component, Container};
-use crate::Theme;
 
 /// A content block inside an assistant message.
 #[derive(Debug, Clone)]
@@ -19,10 +19,7 @@ pub enum AssistantContentBlock {
     /// Thinking / reasoning content (shown in italic dim by default).
     Thinking(String),
     /// A tool call reference (name + JSON args as a string).
-    ToolCall {
-        name: String,
-        args: String,
-    },
+    ToolCall { name: String, args: String },
 }
 
 /// Renders a complete assistant message with text, thinking, and tool-call blocks.
@@ -52,9 +49,7 @@ impl AssistantMessage {
         let mut inner = Container::new();
 
         let has_visible = content.iter().any(|b| match b {
-            AssistantContentBlock::Text(t) | AssistantContentBlock::Thinking(t) => {
-                !t.trim().is_empty()
-            }
+            AssistantContentBlock::Text(t) | AssistantContentBlock::Thinking(t) => !t.trim().is_empty(),
             _ => false,
         });
 
@@ -67,16 +62,11 @@ impl AssistantMessage {
         for (i, block) in content.iter().enumerate() {
             match block {
                 AssistantContentBlock::Text(text) if !text.trim().is_empty() => {
-                    inner.add(Markdown::new(
-                        text.trim().to_string(),
-                        theme.to_markdown_theme(),
-                    ));
+                    inner.add(Markdown::new(text.trim().to_string(), theme.to_markdown_theme()));
                 }
                 AssistantContentBlock::Thinking(text) if !text.trim().is_empty() => {
                     let has_after = content[i + 1..].iter().any(|b| match b {
-                        AssistantContentBlock::Text(t) | AssistantContentBlock::Thinking(t) => {
-                            !t.trim().is_empty()
-                        }
+                        AssistantContentBlock::Text(t) | AssistantContentBlock::Thinking(t) => !t.trim().is_empty(),
                         _ => false,
                     });
 
@@ -84,8 +74,7 @@ impl AssistantMessage {
                         let label = theme.dim(&theme.italic(&hidden_thinking_label));
                         inner.add(Text::with_padding(label, 1, 0));
                     } else {
-                        let styled =
-                            theme.ansi(&theme.thinking_text, &theme.italic(text.trim()));
+                        let styled = theme.ansi(&theme.thinking_text, &theme.italic(text.trim()));
                         inner.add(Text::with_padding(styled, 1, 0));
                     }
 
@@ -109,20 +98,12 @@ impl AssistantMessage {
                         if has_visible {
                             inner.add(Spacer::new(1));
                         }
-                        inner.add(Text::with_padding(
-                            theme.ansi(&theme.error, msg),
-                            1,
-                            0,
-                        ));
+                        inner.add(Text::with_padding(theme.ansi(&theme.error, msg), 1, 0));
                     }
                     "error" => {
                         let msg = error_message.as_deref().unwrap_or("Unknown error");
                         inner.add(Spacer::new(1));
-                        inner.add(Text::with_padding(
-                            theme.ansi(&theme.error, &format!("Error: {msg}")),
-                            1,
-                            0,
-                        ));
+                        inner.add(Text::with_padding(theme.ansi(&theme.error, &format!("Error: {msg}")), 1, 0));
                     }
                     _ => {}
                 }

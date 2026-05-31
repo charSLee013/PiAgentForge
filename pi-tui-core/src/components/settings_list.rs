@@ -67,12 +67,7 @@ pub struct SettingsList {
 }
 
 impl SettingsList {
-    pub fn new(
-        items: Vec<SettingItem>,
-        max_visible: usize,
-        theme: SettingsListTheme,
-        search_enabled: bool,
-    ) -> Self {
+    pub fn new(items: Vec<SettingItem>, max_visible: usize, theme: SettingsListTheme, search_enabled: bool) -> Self {
         Self {
             filtered_items: items.clone(),
             items,
@@ -80,11 +75,7 @@ impl SettingsList {
             selected_index: 0,
             max_visible: max_visible.max(1),
             search_enabled,
-            search_input: if search_enabled {
-                Some(Input::new())
-            } else {
-                None
-            },
+            search_input: if search_enabled { Some(Input::new()) } else { None },
             on_change: None,
             on_cancel: None,
             submenu_component: None,
@@ -113,11 +104,7 @@ impl SettingsList {
     }
 
     fn activate_item(&mut self) {
-        let display_items = if self.search_enabled {
-            &self.filtered_items
-        } else {
-            &self.items
-        };
+        let display_items = if self.search_enabled { &self.filtered_items } else { &self.items };
 
         let item = match display_items.get(self.selected_index) {
             Some(i) => i.clone(),
@@ -145,10 +132,7 @@ impl SettingsList {
             self.filtered_items = self.items.clone();
         } else {
             let results = fuzzy_filter(query, &self.items.iter().map(|i| &i.label).collect::<Vec<_>>());
-            self.filtered_items = results
-                .iter()
-                .map(|(idx, _)| self.items[*idx].clone())
-                .collect();
+            self.filtered_items = results.iter().map(|(idx, _)| self.items[*idx].clone()).collect();
         }
         self.selected_index = 0;
     }
@@ -191,11 +175,7 @@ impl Component for SettingsList {
             return lines;
         }
 
-        let display_items = if self.search_enabled {
-            &self.filtered_items
-        } else {
-            &self.items
-        };
+        let display_items = if self.search_enabled { &self.filtered_items } else { &self.items };
 
         if display_items.is_empty() {
             lines.push(truncate_to_width(&(self.theme.hint)("  No matching settings"), w));
@@ -216,13 +196,7 @@ impl Component for SettingsList {
         let end_index = (start_index + self.max_visible).min(total);
 
         // Calculate max label width for alignment
-        let max_label_w = self
-            .items
-            .iter()
-            .map(|item| visible_width(&item.label))
-            .max()
-            .unwrap_or(10)
-            .min(30);
+        let max_label_w = self.items.iter().map(|item| visible_width(&item.label)).max().unwrap_or(10).min(30);
 
         // Render visible items
         for i in start_index..end_index {
@@ -232,21 +206,15 @@ impl Component for SettingsList {
                 let prefix_w = visible_width(cursor_glyph);
 
                 // Pad label to align values
-                let label_padded = format!(
-                    "{}{}",
-                    item.label,
-                    " ".repeat(max_label_w.saturating_sub(visible_width(&item.label)))
-                );
+                let label_padded =
+                    format!("{}{}", item.label, " ".repeat(max_label_w.saturating_sub(visible_width(&item.label))));
                 let label_styled = (self.theme.label)(&label_padded, is_selected);
 
                 // Value display
                 let separator = "  ";
                 let used = prefix_w + max_label_w + visible_width(separator);
                 let value_max = w.saturating_sub(used).saturating_sub(2);
-                let value_styled = (self.theme.value)(
-                    &truncate_to_width(&item.current_value, value_max),
-                    is_selected,
-                );
+                let value_styled = (self.theme.value)(&truncate_to_width(&item.current_value, value_max), is_selected);
 
                 let full_line = format!("{}{}{}{}", cursor_glyph, label_styled, separator, value_styled);
                 lines.push(truncate_to_width(&full_line, w));
@@ -284,31 +252,23 @@ impl Component for SettingsList {
         }
 
         let event = parse_key(data);
-        let display_items = if self.search_enabled {
-            &self.filtered_items
-        } else {
-            &self.items
-        };
+        let display_items = if self.search_enabled { &self.filtered_items } else { &self.items };
 
         if matches_key(&event, "up") {
             if display_items.is_empty() {
                 return;
             }
-            self.selected_index = if self.selected_index == 0 {
-                display_items.len() - 1
-            } else {
-                self.selected_index - 1
-            };
+            self.selected_index =
+                if self.selected_index == 0 { display_items.len() - 1 } else { self.selected_index - 1 };
         } else if matches_key(&event, "down") {
             if display_items.is_empty() {
                 return;
             }
-            self.selected_index = if self.selected_index == display_items.len() - 1 {
-                0
-            } else {
-                self.selected_index + 1
-            };
-        } else if matches_key(&event, "enter") || (event.code == crate::keys::KeyCode::Char(' ') && !event.modifiers.ctrl && !event.modifiers.alt) {
+            self.selected_index =
+                if self.selected_index == display_items.len() - 1 { 0 } else { self.selected_index + 1 };
+        } else if matches_key(&event, "enter")
+            || (event.code == crate::keys::KeyCode::Char(' ') && !event.modifiers.ctrl && !event.modifiers.alt)
+        {
             self.activate_item();
         } else if matches_key(&event, "escape") {
             if let Some(ref mut cb) = self.on_cancel {

@@ -4,12 +4,14 @@
 //! - `tool_definitions()` — returns [`ToolDefinition`] for all 7 built-in tools
 //! - `execute_tool()` — dispatches a tool call by name to the correct implementation
 
-use pi_agent_core::types::AgentToolResult;
+use pi_agent_core::types::{AgentToolResult, ToolUpdateCallback};
 use pi_ai_core::types::{ContentBlock, TextContent, ToolDefinition};
 use std::collections::BTreeSet;
+use std::sync::Arc;
 use tokio_util::sync::CancellationToken;
 
-use crate::tools::bash::{BashInput, execute_bash};
+use crate::io::{ShellOutputCallback, ShellOutputChunk};
+use crate::tools::bash::{BashInput, execute_bash, execute_bash_with_output_callback};
 use crate::tools::edit::{EditInput, execute_edit};
 use crate::tools::find::{FindInput, execute_find};
 use crate::tools::grep::{GrepInput, execute_grep};
@@ -312,6 +314,18 @@ pub async fn execute_tool_for_selection(
     preset: ToolPreset,
     selection: &ToolSelection,
 ) -> Result<AgentToolResult, String> {
+    execute_tool_for_selection_with_updates(name, args, cancel, preset, selection, None).await
+}
+
+/// Execute a tool with preset, CLI selection, and streaming update callback support.
+pub async fn execute_tool_for_selection_with_updates(
+    name: &str,
+    args: serde_json::Value,
+    cancel: CancellationToken,
+    preset: ToolPreset,
+    selection: &ToolSelection,
+    update_callback: Option<ToolUpdateCallback>,
+) -> Result<AgentToolResult, String> {
     if normalize_tool_name(name).is_none() {
         return Err(format!("Unknown tool: {name}"));
     }
@@ -325,8 +339,8 @@ pub async fn execute_tool_for_selection(
         (ToolPreset::PlanReadOnly, "Write" | "write" | "Edit" | "edit") => {
             Err(format!("Tool '{name}' is disabled in plan mode"))
         }
-        (ToolPreset::PlanReadOnly, "Bash" | "bash") => cmd_bash_plan_mode(args, cancel).await,
-        (_, "Bash" | "bash") => cmd_bash(args, cancel).await,
+        (ToolPreset::PlanReadOnly, "Bash" | "bash") => cmd_bash_plan_mode(args, cancel, update_callback).await,
+        (_, "Bash" | "bash") => cmd_bash(args, cancel, update_callback).await,
         (_, "Read" | "read") => cmd_read(args, &cwd).await,
         (_, "Write" | "write") => cmd_write(args, &cwd).await,
         (_, "Edit" | "edit") => cmd_edit(args, &cwd).await,
@@ -373,7 +387,11 @@ fn is_allowed_plan_bash(command: &str) -> bool {
     PLAN_BASH_ALLOWLIST.iter().any(|prefix| trimmed == *prefix || trimmed.starts_with(&format!("{prefix} ")))
 }
 
-async fn cmd_bash(args: serde_json::Value, cancel: CancellationToken) -> Result<AgentToolResult, String> {
+async fn cmd_bash(
+    args: serde_json::Value,
+    cancel: CancellationToken,
+    update_callback: Option<ToolUpdateCallback>,
+) -> Result<AgentToolResult, String> {
     let command = args
         .get("command")
         .and_then(|v| v.as_str())
@@ -382,7 +400,21 @@ async fn cmd_bash(args: serde_json::Value, cancel: CancellationToken) -> Result<
     let timeout = args.get("timeout").and_then(|v| v.as_u64());
 
     let input = BashInput { command, timeout };
-    let result = execute_bash(&input, cancel).await.map_err(|e| format!("Bash error: {e}"))?;
+    let streaming_callback: Option<ShellOutputCallback> = update_callback.map(|callback| {
+        Arc::new(move |chunk: ShellOutputChunk| {
+            callback(serde_json::json!({
+                "stream": chunk.stream.as_str(),
+                "chunk": chunk.text,
+            }));
+        }) as ShellOutputCallback
+    });
+    let result = if streaming_callback.is_some() {
+        execute_bash_with_output_callback(&input, cancel, streaming_callback)
+            .await
+            .map_err(|e| format!("Bash error: {e}"))?
+    } else {
+        execute_bash(&input, cancel).await.map_err(|e| format!("Bash error: {e}"))?
+    };
 
     Ok(AgentToolResult {
         tool_call_id: String::new(),
@@ -395,7 +427,11 @@ async fn cmd_bash(args: serde_json::Value, cancel: CancellationToken) -> Result<
     })
 }
 
-async fn cmd_bash_plan_mode(args: serde_json::Value, cancel: CancellationToken) -> Result<AgentToolResult, String> {
+async fn cmd_bash_plan_mode(
+    args: serde_json::Value,
+    cancel: CancellationToken,
+    update_callback: Option<ToolUpdateCallback>,
+) -> Result<AgentToolResult, String> {
     let command = args
         .get("command")
         .and_then(|v| v.as_str())
@@ -407,7 +443,7 @@ async fn cmd_bash_plan_mode(args: serde_json::Value, cancel: CancellationToken) 
             PLAN_BASH_ALLOWLIST.join(", ")
         ));
     }
-    cmd_bash(args, cancel).await
+    cmd_bash(args, cancel, update_callback).await
 }
 
 async fn cmd_read(args: serde_json::Value, cwd: &std::path::Path) -> Result<AgentToolResult, String> {
@@ -666,5 +702,31 @@ mod tests {
         .await
         .unwrap_err();
         assert!(err.contains("disabled by the current tool selection"));
+    }
+
+    #[tokio::test]
+    async fn test_execute_tool_with_updates_streams_bash_chunks() {
+        let chunks = Arc::new(std::sync::Mutex::new(Vec::new()));
+        let chunks_clone = chunks.clone();
+        let callback: ToolUpdateCallback = Arc::new(move |partial| {
+            if let Some(chunk) = partial.get("chunk").and_then(|value| value.as_str()) {
+                chunks_clone.lock().unwrap().push(chunk.to_string());
+            }
+        });
+
+        let result = execute_tool_for_selection_with_updates(
+            "Bash",
+            serde_json::json!({ "command": "printf streamed_tool_output" }),
+            CancellationToken::new(),
+            ToolPreset::Full,
+            &ToolSelection::all(),
+            Some(callback),
+        )
+        .await
+        .unwrap();
+
+        assert!(!result.is_error);
+        let streamed = chunks.lock().unwrap().concat();
+        assert!(streamed.contains("streamed_tool_output"), "streamed chunks: {streamed:?}");
     }
 }

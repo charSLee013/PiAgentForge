@@ -24,11 +24,7 @@ impl ApiProvider for DelayedEchoProvider {
             .iter()
             .rev()
             .find_map(|message| {
-                if message.role == MessageRole::User {
-                    Some(extract_text_from_blocks(&message.content))
-                } else {
-                    None
-                }
+                if message.role == MessageRole::User { Some(extract_text_from_blocks(&message.content)) } else { None }
             })
             .unwrap_or_default();
         let delay_ms = self.delay_ms;

@@ -44,7 +44,7 @@ async fn main() -> anyhow::Result<()> {
 
     // Route to the appropriate mode.
     if args.rpc {
-        return pi_modes::rpc::server::run_rpc_server().await;
+        return pi_modes::rpc::server::run_rpc_server_with_max_turns(args.max_turns).await;
     } else if args.list_models {
         list_models().await?;
     } else if args.print {
@@ -242,6 +242,7 @@ async fn run_interactive(args: &pi_cli::args::Args) -> anyhow::Result<()> {
     )
     .await?;
     im.set_tool_selection(tool_selection);
+    im.set_max_turns(args.max_turns);
 
     if should_open_resume_selector(args) {
         im.show_session_selector(true).await?;

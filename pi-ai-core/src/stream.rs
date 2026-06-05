@@ -65,7 +65,7 @@ pub async fn complete_simple(model: &Model, context: Context) -> Result<StreamRe
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::api_registry::{ApiProvider, clear_api_providers, register_api_provider};
+    use crate::api_registry::{ApiProvider, clear_api_providers, lock_test_registry, register_api_provider};
     use crate::event_stream::EventStream;
     use crate::types::{KnownProvider, Message, StreamEvent};
 
@@ -124,6 +124,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_stream_returns_stream_for_registered_provider() {
+        let _guard = lock_test_registry().await;
         clear_api_providers().await;
         register_api_provider(Box::new(TestProvider)).await;
 
@@ -134,6 +135,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_complete_returns_result() {
+        let _guard = lock_test_registry().await;
         clear_api_providers().await;
         register_api_provider(Box::new(TestProvider)).await;
 
@@ -147,6 +149,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_stream_simple_delegates_to_stream() {
+        let _guard = lock_test_registry().await;
         clear_api_providers().await;
         register_api_provider(Box::new(TestProvider)).await;
 
@@ -157,6 +160,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_complete_simple_delegates_to_complete() {
+        let _guard = lock_test_registry().await;
         clear_api_providers().await;
         register_api_provider(Box::new(TestProvider)).await;
 
@@ -167,6 +171,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_stream_options_passthrough() {
+        let _guard = lock_test_registry().await;
         clear_api_providers().await;
         register_api_provider(Box::new(TestProvider)).await;
 

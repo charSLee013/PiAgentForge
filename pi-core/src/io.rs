@@ -6,6 +6,7 @@
 use std::ffi::OsString;
 use std::fmt::Debug;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 use std::time::Duration;
 use tokio::io::AsyncReadExt;
 use tokio::process::Command;
@@ -135,6 +136,32 @@ pub struct ShellOutput {
     pub stderr: String,
 }
 
+/// Source stream for a shell output chunk.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ShellStream {
+    Stdout,
+    Stderr,
+}
+
+impl ShellStream {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Stdout => "stdout",
+            Self::Stderr => "stderr",
+        }
+    }
+}
+
+/// A streaming output chunk emitted while a shell command is running.
+#[derive(Debug, Clone)]
+pub struct ShellOutputChunk {
+    pub stream: ShellStream,
+    pub text: String,
+}
+
+/// Callback invoked for each streaming shell output chunk.
+pub type ShellOutputCallback = Arc<dyn Fn(ShellOutputChunk) + Send + Sync>;
+
 /// Abstract shell that tools use to execute commands.
 #[async_trait::async_trait]
 pub trait Shell: Send + Sync + Debug {
@@ -144,14 +171,33 @@ pub trait Shell: Send + Sync + Debug {
         command: &str,
         timeout: Option<Duration>,
         cancel: CancellationToken,
+        on_output: Option<ShellOutputCallback>,
     ) -> Result<ShellOutput, IoError>;
 }
 
 /// Read all bytes from an async reader into a `String`.
-async fn read_stream_to_string(mut reader: impl tokio::io::AsyncRead + Unpin) -> Result<String, std::io::Error> {
-    let mut buf = Vec::new();
-    reader.read_to_end(&mut buf).await?;
-    Ok(String::from_utf8_lossy(&buf).to_string())
+async fn read_stream_to_string(
+    mut reader: impl tokio::io::AsyncRead + Unpin,
+    stream: ShellStream,
+    on_output: Option<ShellOutputCallback>,
+) -> Result<String, std::io::Error> {
+    let mut buf = [0_u8; 4096];
+    let mut output = String::new();
+
+    loop {
+        let read = reader.read(&mut buf).await?;
+        if read == 0 {
+            break;
+        }
+
+        let chunk = String::from_utf8_lossy(&buf[..read]).to_string();
+        if let Some(callback) = &on_output {
+            callback(ShellOutputChunk { stream, text: chunk.clone() });
+        }
+        output.push_str(&chunk);
+    }
+
+    Ok(output)
 }
 
 // ---------------------------------------------------------------------------
@@ -169,6 +215,7 @@ impl Shell for DefaultShell {
         command: &str,
         timeout: Option<Duration>,
         cancel: CancellationToken,
+        on_output: Option<ShellOutputCallback>,
     ) -> Result<ShellOutput, IoError> {
         tracing::debug!(command = %command, timeout = ?timeout, "DefaultShell::execute");
 
@@ -184,8 +231,16 @@ impl Shell for DefaultShell {
         let stdout_reader = child.stdout.take().ok_or_else(|| IoError::Io(std::io::Error::other("no stdout")))?;
         let stderr_reader = child.stderr.take().ok_or_else(|| IoError::Io(std::io::Error::other("no stderr")))?;
 
-        let read_stdout = tokio::spawn(async move { read_stream_to_string(stdout_reader).await });
-        let read_stderr = tokio::spawn(async move { read_stream_to_string(stderr_reader).await });
+        let stdout_callback = on_output.clone();
+        let stderr_callback = on_output;
+        let read_stdout =
+            tokio::spawn(
+                async move { read_stream_to_string(stdout_reader, ShellStream::Stdout, stdout_callback).await },
+            );
+        let read_stderr =
+            tokio::spawn(
+                async move { read_stream_to_string(stderr_reader, ShellStream::Stderr, stderr_callback).await },
+            );
 
         // Wait for the process to finish, with optional timeout and cancellation.
         let wait = child.wait();
@@ -322,6 +377,7 @@ pub(crate) mod tests {
             _command: &str,
             _timeout: Option<Duration>,
             _cancel: CancellationToken,
+            _on_output: Option<ShellOutputCallback>,
         ) -> Result<ShellOutput, IoError> {
             self.execution_count.store(true, Ordering::SeqCst);
             Ok(ShellOutput { exit_code: 0, stdout: "mock output".to_string(), stderr: String::new() })
@@ -332,7 +388,7 @@ pub(crate) mod tests {
     async fn test_default_shell_echo() {
         let shell = DefaultShell;
         let cancel = CancellationToken::new();
-        let result = shell.execute("echo hello", None, cancel).await.unwrap();
+        let result = shell.execute("echo hello", None, cancel, None).await.unwrap();
         assert_eq!(result.exit_code, 0);
         assert!(result.stdout.contains("hello"));
     }
@@ -341,7 +397,7 @@ pub(crate) mod tests {
     async fn test_default_shell_nonzero_exit() {
         let shell = DefaultShell;
         let cancel = CancellationToken::new();
-        let result = shell.execute("exit 42", None, cancel).await.unwrap();
+        let result = shell.execute("exit 42", None, cancel, None).await.unwrap();
         assert_eq!(result.exit_code, 42);
     }
 
@@ -349,7 +405,7 @@ pub(crate) mod tests {
     async fn test_default_shell_timeout() {
         let shell = DefaultShell;
         let cancel = CancellationToken::new();
-        let result = shell.execute("sleep 10", Some(Duration::from_millis(100)), cancel).await;
+        let result = shell.execute("sleep 10", Some(Duration::from_millis(100)), cancel, None).await;
         assert!(result.is_err());
     }
 
@@ -362,7 +418,7 @@ pub(crate) mod tests {
             tokio::time::sleep(Duration::from_millis(50)).await;
             cancel_clone.cancel();
         });
-        let result = shell.execute("sleep 10", None, cancel).await;
+        let result = shell.execute("sleep 10", None, cancel, None).await;
         assert!(result.is_err());
     }
 
@@ -370,9 +426,28 @@ pub(crate) mod tests {
     async fn test_mock_shell() {
         let shell = MockShell::new();
         let cancel = CancellationToken::new();
-        let result = shell.execute("anything", None, cancel).await.unwrap();
+        let result = shell.execute("anything", None, cancel, None).await.unwrap();
         assert_eq!(result.exit_code, 0);
         assert_eq!(result.stdout, "mock output");
+    }
+
+    #[tokio::test]
+    async fn test_default_shell_streaming_callback_receives_output() {
+        let shell = DefaultShell;
+        let cancel = CancellationToken::new();
+        let chunks = Arc::new(std::sync::Mutex::new(Vec::new()));
+        let chunks_clone = chunks.clone();
+        let callback: ShellOutputCallback = Arc::new(move |chunk| {
+            chunks_clone.lock().unwrap().push(chunk);
+        });
+
+        let result = shell.execute("printf hello_stream", None, cancel, Some(callback)).await.unwrap();
+
+        assert_eq!(result.exit_code, 0);
+        let captured = chunks.lock().unwrap();
+        assert!(!captured.is_empty(), "streaming callback should receive at least one chunk");
+        let combined = captured.iter().map(|chunk| chunk.text.as_str()).collect::<String>();
+        assert!(combined.contains("hello_stream"), "streamed chunks: {combined:?}");
     }
 
     #[tokio::test]

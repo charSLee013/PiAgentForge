@@ -196,6 +196,8 @@ pub struct InteractiveMode {
     api_key: Option<String>,
     /// Current thinking level for this interactive session.
     thinking_level: String,
+    /// Maximum number of turns allowed for the main interactive agent run.
+    max_turns: u32,
     /// Whether plan mode is enabled for the next interactive run.
     plan_mode: bool,
     /// The most recently captured plan awaiting user action.
@@ -392,6 +394,7 @@ impl InteractiveMode {
             model_id: resolved_model_id,
             api_key,
             thinking_level: restored_thinking_level,
+            max_turns: 200,
             plan_mode: false,
             pending_plan: None,
             plan_progress: None,
@@ -430,6 +433,10 @@ impl InteractiveMode {
     /// Override the built-in tool selection for this interactive session.
     pub fn set_tool_selection(&mut self, selection: ToolSelection) {
         self.tool_selection = selection;
+    }
+
+    pub fn set_max_turns(&mut self, max_turns: u32) {
+        self.max_turns = max_turns;
     }
 
     pub fn is_streaming_for_test(&self) -> bool {
@@ -765,6 +772,7 @@ impl InteractiveMode {
         let follow_up_queue = self.follow_up_queue.clone();
         let tool_preset = self.current_tool_preset();
         let tool_selection = self.tool_selection.clone();
+        let max_turns = self.max_turns;
         let (tx, rx) = mpsc::unbounded_channel::<BackgroundRunResult>();
         self.background_run_rx = Some(rx);
         self.is_streaming = true;
@@ -778,7 +786,7 @@ impl InteractiveMode {
                     system_prompt,
                     tools,
                     model: Some(model.id.clone()),
-                    max_turns: 200,
+                    max_turns,
                     current_turn: 0,
                 },
                 pending_tool_calls: vec![],
@@ -2865,7 +2873,10 @@ fn parse_subagent_spec(spec: Option<&str>) -> io::Result<(SubagentMode, Vec<Stri
         "parallel" => SubagentMode::Parallel,
         "chain" => SubagentMode::Chain,
         other => {
-            return Err(io::Error::other(format!("Unknown subagent mode '{}'. Use single, parallel, or chain.", other)));
+            return Err(io::Error::other(format!(
+                "Unknown subagent mode '{}'. Use single, parallel, or chain.",
+                other
+            )));
         }
     };
     let task_spec = parts

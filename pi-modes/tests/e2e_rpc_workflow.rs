@@ -6,8 +6,8 @@ use pi_ai_core::event_stream::{AssistantMessageEventStream, EventStream};
 use pi_ai_core::types::{
     ContentBlock, Context, KnownProvider, Message, MessageRole, Model, StreamEvent, StreamOptions,
 };
-use pi_modes::rpc::types::RpcCommand;
 use pi_modes::rpc::runtime::RpcRuntime;
+use pi_modes::rpc::types::RpcCommand;
 
 struct DelayedEchoProvider {
     api_id: &'static str,
@@ -95,7 +95,11 @@ async fn e2e_rpc_workflow_smoke() {
     );
     assert!(
         runtime
-            .handle_command_for_test(RpcCommand::FollowUp { id: None, message: "follow later".to_string(), images: None })
+            .handle_command_for_test(RpcCommand::FollowUp {
+                id: None,
+                message: "follow later".to_string(),
+                images: None
+            })
             .await
             .success
     );

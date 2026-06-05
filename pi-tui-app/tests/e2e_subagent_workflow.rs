@@ -40,9 +40,9 @@ fn e2e_subagent_workflow_respects_busy_and_persists_outputs() {
     assert!(text.contains("Subagent (chain)"), "{text:?}");
     assert!(!text.contains("{previous}"), "{text:?}");
 
-    let resumed =
-        rt.block_on(pi_tui_app::InteractiveMode::new(&model.id, model, None, None, Some(path.clone()), dir.clone()))
-            .unwrap();
+    let resumed = rt
+        .block_on(pi_tui_app::InteractiveMode::new(&model.id, model, None, None, Some(path.clone()), dir.clone()))
+        .unwrap();
     let texts = common::collect_texts(resumed.session_for_test().build_context().messages);
     assert!(texts.iter().any(|text| text.contains("Subagent (single)")), "{texts:?}");
     assert!(texts.iter().any(|text| text.contains("Subagent (parallel)")), "{texts:?}");

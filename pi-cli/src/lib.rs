@@ -10,6 +10,7 @@
 pub mod args;
 
 use anyhow::{Context as AnyhowContext, Result};
+use pi_agent_core::AgentEvent;
 use pi_ai_core::api_registry::register_api_provider;
 use pi_ai_core::thinking::{
     clamp_thinking_level, default_thinking_level_for_model, is_valid_thinking_level, thinking_enabled,
@@ -17,7 +18,7 @@ use pi_ai_core::thinking::{
 use pi_ai_core::types::{ContentBlock, Context, KnownProvider, Model, StreamOptions};
 use pi_core::auth::AuthStorage;
 use pi_core::settings::Settings;
-use pi_core::tool_registry::{self, ToolSelection};
+use pi_core::tool_registry::{self, ToolSelection, execute_tool_for_selection_with_updates};
 #[cfg(feature = "feat-anthropic")]
 use pi_provider_anthropic::AnthropicProvider;
 #[cfg(feature = "feat-google")]
@@ -25,6 +26,8 @@ use pi_provider_google::GoogleProvider;
 #[cfg(feature = "feat-mistral")]
 use pi_provider_mistral::MistralProvider;
 use pi_provider_openai::OpenAiCompletionsProvider;
+use std::io::Write;
+use std::sync::{Arc, Mutex};
 
 // ---------------------------------------------------------------------------
 // Session configuration
@@ -51,6 +54,24 @@ pub struct SessionConfig {
     pub thinking_level: String,
     /// Custom base URL for OpenAI-compatible endpoints (from CLI or settings).
     pub base_url: Option<String>,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct RuntimeOptions {
+    pub max_turns: u32,
+    pub stream_stdout: bool,
+    pub json_output: bool,
+}
+
+#[derive(Debug, Default)]
+struct PrintEventState {
+    current_turn: u32,
+}
+
+impl RuntimeOptions {
+    pub fn from_args(args: &args::Args) -> Self {
+        Self { max_turns: args.max_turns, stream_stdout: args.stream_stdout, json_output: args.json }
+    }
 }
 
 impl SessionConfig {
@@ -81,7 +102,8 @@ impl SessionConfig {
         });
 
         // Merge: CLI args > settings.json > defaults
-        let effective_base_url = args.base_url.clone().or_else(|| settings.base_url.clone());
+        let effective_base_url =
+            args.base_url.clone().or_else(|| std::env::var("PI_BASE_URL").ok()).or_else(|| settings.base_url.clone());
         let effective_api_key = args.api_key.clone().or_else(|| settings.api_key.clone());
         let effective_model = args.model.clone().or_else(|| settings.default_model.clone());
         let effective_provider = args.provider.clone().or_else(|| settings.default_provider.clone());
@@ -348,6 +370,124 @@ fn find_or_build_model(config: &SessionConfig) -> Result<&'static Model> {
     anyhow::bail!("Model '{}' not found in catalog", config.model_id)
 }
 
+fn extract_text_from_blocks(blocks: &[ContentBlock]) -> String {
+    blocks
+        .iter()
+        .filter_map(|block| if let ContentBlock::Text(text) = block { Some(text.text.clone()) } else { None })
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+fn write_stdout(text: &str) {
+    if text.is_empty() {
+        return;
+    }
+    let stdout = std::io::stdout();
+    let mut handle = stdout.lock();
+    let _ = handle.write_all(text.as_bytes());
+    let _ = handle.flush();
+}
+
+fn write_json_line(value: serde_json::Value) {
+    let stdout = std::io::stdout();
+    let mut handle = stdout.lock();
+    let line = serde_json::to_string(&value).unwrap_or_else(|_| "null".to_string());
+    let _ = handle.write_all(line.as_bytes());
+    let _ = handle.write_all(b"\n");
+    let _ = handle.flush();
+}
+
+fn handle_print_event(event: AgentEvent, options: RuntimeOptions, state: &Arc<Mutex<PrintEventState>>) {
+    match event {
+        AgentEvent::TurnStart { turn_number } => {
+            state.lock().expect("print event state poisoned").current_turn = turn_number;
+            if options.json_output {
+                write_json_line(serde_json::json!({
+                    "type": "turn_start",
+                    "turn": turn_number,
+                }));
+            } else {
+                tracing::debug!("Agent turn {turn_number}");
+            }
+        }
+        AgentEvent::ToolExecutionStart { tool_name, arguments, .. } => {
+            let turn = state.lock().expect("print event state poisoned").current_turn;
+            if options.json_output {
+                write_json_line(serde_json::json!({
+                    "type": "tool_call",
+                    "turn": turn,
+                    "tool": tool_name,
+                    "args": arguments,
+                }));
+            } else {
+                tracing::debug!("Executing tool: {tool_name}");
+            }
+        }
+        AgentEvent::ToolExecutionUpdate { tool_name, partial_result, .. } => {
+            if options.json_output {
+                let turn = state.lock().expect("print event state poisoned").current_turn;
+                write_json_line(serde_json::json!({
+                    "type": "tool_update",
+                    "turn": turn,
+                    "tool": tool_name,
+                    "partial_result": partial_result,
+                }));
+            } else if options.stream_stdout && tool_name.eq_ignore_ascii_case("bash") {
+                if let Some(chunk) = partial_result.get("chunk").and_then(|value| value.as_str()) {
+                    write_stdout(chunk);
+                }
+            }
+        }
+        AgentEvent::ToolExecutionEnd { tool_name, result, .. } => {
+            if options.json_output {
+                let turn = state.lock().expect("print event state poisoned").current_turn;
+                write_json_line(serde_json::json!({
+                    "type": "tool_result",
+                    "turn": turn,
+                    "tool": tool_name,
+                    "result": extract_text_from_blocks(&result.content),
+                    "is_error": result.is_error,
+                    "details": result.details,
+                }));
+            }
+        }
+        AgentEvent::MessageEnd { message, .. } => {
+            if options.json_output {
+                let content = extract_text_from_blocks(&message);
+                if !content.is_empty() {
+                    let turn = state.lock().expect("print event state poisoned").current_turn;
+                    write_json_line(serde_json::json!({
+                        "type": "assistant_message",
+                        "turn": turn,
+                        "content": content,
+                    }));
+                }
+            }
+        }
+        AgentEvent::TurnEnd { turn_number } => {
+            if options.json_output {
+                write_json_line(serde_json::json!({
+                    "type": "turn_end",
+                    "turn": turn_number,
+                }));
+            }
+        }
+        AgentEvent::AgentEnd { finish_reason, .. } => {
+            if options.json_output {
+                let turn = state.lock().expect("print event state poisoned").current_turn;
+                write_json_line(serde_json::json!({
+                    "type": "agent_end",
+                    "turn": turn,
+                    "finish_reason": finish_reason,
+                }));
+            } else {
+                tracing::debug!("Agent finished: {finish_reason}");
+            }
+        }
+        AgentEvent::AgentStart { .. } | AgentEvent::MessageStart { .. } | AgentEvent::MessageDelta { .. } => {}
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Print mode
 // ---------------------------------------------------------------------------
@@ -360,7 +500,11 @@ fn find_or_build_model(config: &SessionConfig) -> Result<&'static Model> {
 /// to fulfill the user's request.
 ///
 /// The final assistant message text is printed to stdout.
-async fn print_mode_with_tools(config: &SessionConfig, tool_selection: &ToolSelection) -> Result<()> {
+async fn print_mode_with_tools(
+    config: &SessionConfig,
+    tool_selection: &ToolSelection,
+    runtime_options: RuntimeOptions,
+) -> Result<()> {
     register_builtin_providers().await;
 
     // If a custom base_url is configured, register an OpenAI provider that
@@ -387,7 +531,7 @@ async fn print_mode_with_tools(config: &SessionConfig, tool_selection: &ToolSele
             system_prompt: config.system_prompt.clone(),
             tools,
             model: Some(config.model_id.clone()),
-            max_turns: 200,
+            max_turns: runtime_options.max_turns,
             current_turn: 0,
         },
         pending_tool_calls: vec![],
@@ -412,7 +556,7 @@ async fn print_mode_with_tools(config: &SessionConfig, tool_selection: &ToolSele
     // Bridges the async `execute_tool` into the sync closure that agent_loop
     // expects, using `block_in_place` + `Handle::block_on`.
     let cancel_for_tools = cancel.clone();
-    let tool_executor = move |name: &str, _id: &str, args: &serde_json::Value| {
+    let tool_executor = move |name: &str, _id: &str, args: &serde_json::Value, updates| {
         let cancel = cancel_for_tools.clone();
         let name = name.to_string();
         let args = args.clone();
@@ -420,12 +564,13 @@ async fn print_mode_with_tools(config: &SessionConfig, tool_selection: &ToolSele
         let tool_selection = tool_selection.clone();
         tokio::task::block_in_place(move || {
             rt_handle.block_on(async move {
-                let result = tool_registry::execute_tool_for_selection(
+                let result = execute_tool_for_selection_with_updates(
                     &name,
                     args,
                     cancel,
                     tool_registry::ToolPreset::Full,
                     &tool_selection,
+                    updates,
                 )
                 .await?;
                 Ok(result)
@@ -434,33 +579,30 @@ async fn print_mode_with_tools(config: &SessionConfig, tool_selection: &ToolSele
     };
 
     // ── Event sink ─────────────────────────────────────────────────────────
-    let event_sink = |event: pi_agent_core::AgentEvent| match &event {
-        pi_agent_core::AgentEvent::TurnStart { turn_number } => {
-            tracing::debug!("Agent turn {turn_number}");
+    let print_state = Arc::new(Mutex::new(PrintEventState::default()));
+    let event_sink = {
+        let print_state = print_state.clone();
+        move |event: pi_agent_core::AgentEvent| {
+            handle_print_event(event, runtime_options, &print_state);
         }
-        pi_agent_core::AgentEvent::ToolExecutionStart { tool_name, .. } => {
-            tracing::debug!("Executing tool: {tool_name}");
-        }
-        pi_agent_core::AgentEvent::AgentEnd { finish_reason, .. } => {
-            tracing::debug!("Agent finished: {finish_reason}");
-        }
-        _ => {}
     };
 
     // ── Run agent loop ─────────────────────────────────────────────────────
-    pi_agent_core::agent_loop(&mut state, stream_fn, tool_executor, event_sink, cancel)
+    pi_agent_core::agent_loop::agent_loop_with_tool_updates(&mut state, stream_fn, tool_executor, event_sink, cancel)
         .await
         .context("Agent loop failed")?;
 
     // ── Print final assistant message ──────────────────────────────────────
-    if let Some(last_msg) = state.messages.last() {
-        for block in &last_msg.content {
-            if let ContentBlock::Text(text) = block {
-                print!("{}", text.text);
+    if !runtime_options.json_output {
+        if let Some(last_msg) = state.messages.last() {
+            for block in &last_msg.content {
+                if let ContentBlock::Text(text) = block {
+                    write_stdout(&text.text);
+                }
             }
         }
+        write_stdout("\n");
     }
-    println!();
 
     Ok(())
 }
@@ -476,7 +618,8 @@ pub async fn create_print_mode(args: &args::Args) -> Result<()> {
 
     let config = SessionConfig::from_args(args)?;
     let tool_selection = tool_selection_from_args(args)?;
-    print_mode_with_tools(&config, &tool_selection).await
+    let runtime_options = RuntimeOptions::from_args(args);
+    print_mode_with_tools(&config, &tool_selection, runtime_options).await
 }
 
 // ---------------------------------------------------------------------------
@@ -623,6 +766,17 @@ mod tests {
     }
 
     #[test]
+    fn test_args_parse_max_turns_and_stream_stdout() {
+        let args =
+            args::Args::try_parse_from(["pi", "--max-turns", "1234", "--stream-stdout", "--json", "--print", "hi"]);
+        assert!(args.is_ok());
+        let args = args.unwrap();
+        assert_eq!(args.max_turns, 1234);
+        assert!(args.stream_stdout);
+        assert!(args.json);
+    }
+
+    #[test]
     fn test_tool_selection_from_args_no_tools_disables_builtins() {
         let args = args::Args::parse_from(["pi", "--no-tools", "--print", "hello"]);
         let selection = tool_selection_from_args(&args).unwrap();
@@ -743,6 +897,29 @@ mod tests {
         assert_eq!(config.model_id, "my-custom-model");
         assert_eq!(config.provider, KnownProvider::OpenAi);
         assert_eq!(config.base_url.as_deref(), Some("https://custom.api.com/v1"));
+    }
+
+    #[test]
+    fn test_session_config_uses_pi_base_url_env() {
+        unsafe {
+            std::env::set_var("PI_BASE_URL", "https://env.example/v1");
+        }
+        let args = args::Args::parse_from(["pi", "--model", "env-custom-model", "hello"]);
+        let config = SessionConfig::from_args(&args).expect("custom model with PI_BASE_URL should resolve");
+        assert_eq!(config.base_url.as_deref(), Some("https://env.example/v1"));
+        assert_eq!(config.model_id, "env-custom-model");
+        unsafe {
+            std::env::remove_var("PI_BASE_URL");
+        }
+    }
+
+    #[test]
+    fn test_runtime_options_from_args() {
+        let args = args::Args::parse_from(["pi", "--max-turns", "42", "--stream-stdout", "--json", "--print", "hello"]);
+        let runtime = RuntimeOptions::from_args(&args);
+        assert_eq!(runtime.max_turns, 42);
+        assert!(runtime.stream_stdout);
+        assert!(runtime.json_output);
     }
 
     #[test]

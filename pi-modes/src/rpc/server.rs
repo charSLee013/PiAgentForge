@@ -28,8 +28,12 @@ use super::types::*;
 /// Commands that require a full agent session runtime return "not implemented"
 /// errors.
 pub async fn run_rpc_server() -> anyhow::Result<()> {
+    run_rpc_server_with_max_turns(200).await
+}
+
+pub async fn run_rpc_server_with_max_turns(max_turns: u32) -> anyhow::Result<()> {
     tracing::info!("starting RPC server (stdin/stdout protocol)");
-    let runtime = RpcRuntime::from_environment().await?;
+    let runtime = RpcRuntime::from_environment_with_max_turns(max_turns).await?;
     let stdin = io::stdin();
     let mut reader = stdin.lock();
     let mut line = String::new();
@@ -106,6 +110,7 @@ pub async fn handle_command(command: RpcCommand) -> RpcResponse {
         },
         system_prompt: None,
         thinking_level: "off".to_string(),
+        max_turns: 200,
         session_dir: std::env::temp_dir(),
         session_path: None,
     })

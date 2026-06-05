@@ -37,9 +37,9 @@ fn e2e_full_long_flow_smoke() {
     im.set_editor_text_for_test("/export");
     rt.block_on(im.send_message_for_test());
 
-    let resumed =
-        rt.block_on(pi_tui_app::InteractiveMode::new(&model.id, model, None, None, Some(path.clone()), dir.clone()))
-            .unwrap();
+    let resumed = rt
+        .block_on(pi_tui_app::InteractiveMode::new(&model.id, model, None, None, Some(path.clone()), dir.clone()))
+        .unwrap();
     let texts = common::collect_texts(resumed.session_for_test().build_context().messages);
     assert!(
         texts.iter().any(|text| text.contains("echo:Summarize the following conversation context."))

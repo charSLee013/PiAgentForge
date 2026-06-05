@@ -2,6 +2,7 @@
 //! Mirrors packages/agent/src/types.ts
 
 use pi_ai_core::types::{ContentBlock, Message, ToolDefinition};
+use std::sync::Arc;
 
 /// Agent event types emitted during the agent loop lifecycle.
 ///
@@ -54,6 +55,9 @@ pub enum AgentEvent {
     /// A turn has ended.
     TurnEnd { turn_number: u32 },
 }
+
+/// Callback for reporting partial/streaming tool output during execution.
+pub type ToolUpdateCallback = Arc<dyn Fn(serde_json::Value) + Send + Sync>;
 
 /// The result of executing a single tool call.
 ///

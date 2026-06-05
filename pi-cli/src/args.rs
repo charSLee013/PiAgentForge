@@ -67,6 +67,14 @@ pub struct Args {
     #[arg(long)]
     pub json: bool,
 
+    /// Maximum number of agent turns before stopping
+    #[arg(long, default_value_t = 200)]
+    pub max_turns: u32,
+
+    /// Stream bash stdout/stderr to stdout while the agent is running
+    #[arg(long)]
+    pub stream_stdout: bool,
+
     /// RPC mode
     #[arg(long)]
     pub rpc: bool,

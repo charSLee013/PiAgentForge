@@ -20,8 +20,16 @@ type ProviderMap = HashMap<ApiId, Box<dyn ApiProvider>>;
 
 static API_PROVIDER_REGISTRY: OnceLock<RwLock<ProviderMap>> = OnceLock::new();
 
+#[cfg(test)]
+static TEST_REGISTRY_LOCK: OnceLock<tokio::sync::Mutex<()>> = OnceLock::new();
+
 fn registry() -> &'static RwLock<ProviderMap> {
     API_PROVIDER_REGISTRY.get_or_init(|| RwLock::new(HashMap::new()))
+}
+
+#[cfg(test)]
+pub(crate) async fn lock_test_registry() -> tokio::sync::MutexGuard<'static, ()> {
+    TEST_REGISTRY_LOCK.get_or_init(|| tokio::sync::Mutex::new(())).lock().await
 }
 
 /// Register an API provider.
@@ -75,6 +83,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_register_and_list() {
+        let _guard = lock_test_registry().await;
         clear_api_providers().await;
         register_api_provider(Box::new(TestProvider)).await;
 
@@ -85,6 +94,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_with_provider() {
+        let _guard = lock_test_registry().await;
         clear_api_providers().await;
         register_api_provider(Box::new(TestProvider)).await;
 

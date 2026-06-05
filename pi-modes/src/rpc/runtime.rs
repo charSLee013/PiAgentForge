@@ -40,6 +40,7 @@ pub(crate) struct RpcRuntimeConfig {
     pub model: Model,
     pub system_prompt: Option<String>,
     pub thinking_level: String,
+    pub max_turns: u32,
     pub session_dir: PathBuf,
     pub session_path: Option<PathBuf>,
 }
@@ -58,6 +59,7 @@ struct RpcRuntimeShared {
     auto_compaction_enabled: AtomicBool,
     is_streaming: AtomicBool,
     is_compacting: AtomicBool,
+    max_turns: u32,
     cancel: Mutex<Option<CancellationToken>>,
 }
 
@@ -67,6 +69,7 @@ impl RpcRuntime {
             model,
             system_prompt: None,
             thinking_level: "off".to_string(),
+            max_turns: 200,
             session_dir,
             session_path,
         })
@@ -74,7 +77,7 @@ impl RpcRuntime {
         .expect("test runtime should initialize")
     }
 
-    pub(crate) async fn from_environment() -> anyhow::Result<Self> {
+    pub(crate) async fn from_environment_with_max_turns(max_turns: u32) -> anyhow::Result<Self> {
         let settings = Settings::load().unwrap_or_else(|_| Settings {
             path: Settings::default_path(),
             default_model: None,
@@ -91,6 +94,7 @@ impl RpcRuntime {
             model: model.clone(),
             system_prompt: None,
             thinking_level: default_thinking_level_for_model(model).to_string(),
+            max_turns,
             session_dir,
             session_path,
         })
@@ -135,6 +139,7 @@ impl RpcRuntime {
                 auto_compaction_enabled: AtomicBool::new(false),
                 is_streaming: AtomicBool::new(false),
                 is_compacting: AtomicBool::new(false),
+                max_turns: config.max_turns,
                 cancel: Mutex::new(None),
             }),
         })
@@ -726,6 +731,7 @@ impl RpcRuntime {
         let thinking_level = shared.thinking_level.lock().expect("thinking level poisoned").clone();
         let system_prompt = shared.system_prompt.clone();
         let session_model_id = model.id.clone();
+        let max_turns = shared.max_turns;
 
         tokio::spawn(async move {
             let tools = tool_registry::tool_definitions();
@@ -736,7 +742,7 @@ impl RpcRuntime {
                     system_prompt,
                     tools,
                     model: Some(session_model_id),
-                    max_turns: 200,
+                    max_turns,
                     current_turn: 0,
                 },
                 pending_tool_calls: vec![],
@@ -1328,6 +1334,7 @@ mod tests {
             model: test_model(),
             system_prompt: None,
             thinking_level: "off".to_string(),
+            max_turns: 200,
             session_dir: dir.path().to_path_buf(),
             session_path: Some(path),
         })

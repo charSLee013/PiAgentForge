@@ -48,9 +48,9 @@ fn e2e_session_workflow_persists_queue_compaction_export_and_resume() {
     let (_, entries, _) = rt.block_on(storage::read_all(&path)).unwrap();
     assert!(common::has_compaction(&entries), "expected persisted compaction entry");
 
-    let resumed =
-        rt.block_on(pi_tui_app::InteractiveMode::new(&model.id, model, None, None, Some(path.clone()), dir.clone()))
-            .unwrap();
+    let resumed = rt
+        .block_on(pi_tui_app::InteractiveMode::new(&model.id, model, None, None, Some(path.clone()), dir.clone()))
+        .unwrap();
     let texts = common::collect_texts(resumed.session_for_test().build_context().messages);
     assert!(
         texts.iter().any(|text| text.contains("echo:Summarize the following conversation context."))

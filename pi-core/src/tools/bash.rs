@@ -1,7 +1,7 @@
 //! Bash tool — execute shell commands.
 //! Mirrors `packages/coding-agent/src/core/tools/bash.ts`
 
-use crate::io::{DefaultShell, IoError, Shell, ShellOutput};
+use crate::io::{DefaultShell, IoError, Shell, ShellOutput, ShellOutputCallback};
 use crate::tools::truncate::{self, DEFAULT_MAX_BYTES, DEFAULT_MAX_LINES, TruncationOptions, TruncationResult};
 use std::time::Duration;
 use tokio_util::sync::CancellationToken;
@@ -71,7 +71,17 @@ impl From<IoError> for BashError {
 /// Execute a bash command using the default shell.
 pub async fn execute_bash(input: &BashInput, cancel: CancellationToken) -> Result<BashResult, BashError> {
     let shell = DefaultShell;
-    execute_bash_with(input, &shell, cancel).await
+    execute_bash_with_callback(input, &shell, cancel, None).await
+}
+
+/// Execute a bash command using the default shell and report streaming output chunks.
+pub async fn execute_bash_with_output_callback(
+    input: &BashInput,
+    cancel: CancellationToken,
+    on_output: Option<ShellOutputCallback>,
+) -> Result<BashResult, BashError> {
+    let shell = DefaultShell;
+    execute_bash_with_callback(input, &shell, cancel, on_output).await
 }
 
 /// Execute a bash command with a custom shell implementation (for testing).
@@ -79,6 +89,16 @@ pub async fn execute_bash_with(
     input: &BashInput,
     shell: &dyn Shell,
     cancel: CancellationToken,
+) -> Result<BashResult, BashError> {
+    execute_bash_with_callback(input, shell, cancel, None).await
+}
+
+/// Execute a bash command with a custom shell implementation and streaming callback.
+pub async fn execute_bash_with_callback(
+    input: &BashInput,
+    shell: &dyn Shell,
+    cancel: CancellationToken,
+    on_output: Option<ShellOutputCallback>,
 ) -> Result<BashResult, BashError> {
     tracing::debug!(
         command = %input.command,
@@ -89,7 +109,8 @@ pub async fn execute_bash_with(
     // Convert u64 seconds to Duration.
     let timeout_dur = input.timeout.map(Duration::from_secs);
 
-    let ShellOutput { exit_code, stdout, stderr } = shell.execute(&input.command, timeout_dur, cancel).await?;
+    let ShellOutput { exit_code, stdout, stderr } =
+        shell.execute(&input.command, timeout_dur, cancel, on_output).await?;
 
     // Combine stdout and stderr (matching TS behavior: both go to onData).
     let combined = if stderr.is_empty() {
@@ -129,7 +150,8 @@ pub fn append_status(text: &str, status: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::io::tests::MockShell;
+    use crate::io::{ShellOutputCallback, tests::MockShell};
+    use std::sync::{Arc, Mutex};
 
     #[tokio::test]
     async fn test_bash_success() {
@@ -203,6 +225,27 @@ mod tests {
         .unwrap();
         // Stderr should be captured in output.
         assert!(result.output.contains("stderr_output"));
+    }
+
+    #[tokio::test]
+    async fn test_bash_output_callback_receives_streamed_output() {
+        let chunks = Arc::new(Mutex::new(Vec::new()));
+        let chunks_clone = chunks.clone();
+        let callback: ShellOutputCallback = Arc::new(move |chunk| {
+            chunks_clone.lock().unwrap().push(chunk.text);
+        });
+
+        let result = execute_bash_with_output_callback(
+            &BashInput { command: "printf callback_output".to_string(), timeout: None },
+            CancellationToken::new(),
+            Some(callback),
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(result.exit_code, 0);
+        let streamed = chunks.lock().unwrap().concat();
+        assert!(streamed.contains("callback_output"), "streamed chunks: {streamed:?}");
     }
 
     #[test]

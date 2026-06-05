@@ -1,5 +1,9 @@
 /target
 .codex/
 artifacts/
+.spec-workflow/
+CLAUDE.md
+AGENTS.md
+piagentforge-feedback-for-author.md
 **/*.rs.bk
 .git.broken-worktree-pointer.bak

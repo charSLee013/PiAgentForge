@@ -182,6 +182,12 @@ mod tests {
 
     #[test]
     fn test_image_renders_fallback() {
+        let _guard = terminal_image::lock_test_terminal_state();
+        terminal_image::set_capabilities(terminal_image::TerminalCapabilities {
+            images: None,
+            true_color: false,
+            hyperlinks: false,
+        });
         let img = Image::new(
             String::new(),
             "image/png".to_string(),
@@ -195,27 +201,43 @@ mod tests {
         assert!(joined.contains("test.png"));
         assert!(joined.contains("800x600"));
         assert!(joined.contains("[Image:"));
+        terminal_image::reset_capabilities_cache();
     }
 
     #[test]
     fn test_image_fallback_minimal() {
+        let _guard = terminal_image::lock_test_terminal_state();
+        terminal_image::set_capabilities(terminal_image::TerminalCapabilities {
+            images: None,
+            true_color: false,
+            hyperlinks: false,
+        });
         let img = Image::new(String::new(), "image/jpeg".to_string(), test_theme(), ImageOptions::default(), None);
         let lines = img.render(80);
         assert!(!lines.is_empty());
         assert!(lines[0].contains("[Image:"));
+        terminal_image::reset_capabilities_cache();
     }
 
     #[test]
     fn test_image_invalidate_clears_cache() {
+        let _guard = terminal_image::lock_test_terminal_state();
+        terminal_image::set_capabilities(terminal_image::TerminalCapabilities {
+            images: None,
+            true_color: false,
+            hyperlinks: false,
+        });
         let mut img = Image::new(String::new(), "image/png".to_string(), test_theme(), ImageOptions::default(), None);
         let first = img.render(80);
         img.invalidate();
         let second = img.render(80);
         assert_eq!(first, second);
+        terminal_image::reset_capabilities_cache();
     }
 
     #[test]
     fn test_image_renders_kitty_protocol() {
+        let _guard = terminal_image::lock_test_terminal_state();
         terminal_image::set_capabilities(terminal_image::TerminalCapabilities {
             images: Some(terminal_image::ImageProtocol::Kitty),
             true_color: true,
@@ -239,6 +261,7 @@ mod tests {
 
     #[test]
     fn test_image_renders_iterm2_protocol() {
+        let _guard = terminal_image::lock_test_terminal_state();
         terminal_image::set_capabilities(terminal_image::TerminalCapabilities {
             images: Some(terminal_image::ImageProtocol::Iterm2),
             true_color: true,
@@ -265,6 +288,7 @@ mod tests {
 
     #[test]
     fn test_image_auto_allocates_kitty_id() {
+        let _guard = terminal_image::lock_test_terminal_state();
         terminal_image::set_capabilities(terminal_image::TerminalCapabilities {
             images: Some(terminal_image::ImageProtocol::Kitty),
             true_color: true,

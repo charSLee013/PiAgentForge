@@ -101,6 +101,9 @@ pub struct RenderedImage {
 /// Cached terminal capabilities (set once on first access, resetable for tests).
 static CACHED_CAPABILITIES: Mutex<Option<TerminalCapabilities>> = Mutex::new(None);
 
+#[cfg(test)]
+static TEST_TERMINAL_STATE_LOCK: Mutex<()> = Mutex::new(());
+
 /// Global cell dimensions (default 9×18 px, updateable via `set_cell_dimensions`).
 static CELL_DIMENSIONS: Mutex<CellDimensions> = Mutex::new(CellDimensions { width_px: 9.0, height_px: 18.0 });
 
@@ -176,6 +179,11 @@ pub fn reset_capabilities_cache() {
 /// Override the cached capabilities. Useful in tests to exercise both code paths.
 pub fn set_capabilities(caps: TerminalCapabilities) {
     *CACHED_CAPABILITIES.lock().unwrap() = Some(caps);
+}
+
+#[cfg(test)]
+pub(crate) fn lock_test_terminal_state() -> std::sync::MutexGuard<'static, ()> {
+    TEST_TERMINAL_STATE_LOCK.lock().unwrap()
 }
 
 // ============================================================================
@@ -480,6 +488,10 @@ pub fn is_image_line(line: &str) -> bool {
 mod tests {
     use super::*;
 
+    fn test_guard() -> std::sync::MutexGuard<'static, ()> {
+        lock_test_terminal_state()
+    }
+
     // ------------------------------------------------------------------
     // image_fallback tests
     // ------------------------------------------------------------------
@@ -644,6 +656,7 @@ mod tests {
 
     #[test]
     fn test_detect_capabilities_tmux_sets_hyperlink_false() {
+        let _guard = test_guard();
         // Simulate tmux
         temp_env::with_vars([("TMUX", Some("/tmp/tmux-1/default")), ("TERM", Some("screen-256color"))], || {
             let caps = TerminalCapabilities::detect();
@@ -654,6 +667,7 @@ mod tests {
 
     #[test]
     fn test_detect_capabilities_kitty() {
+        let _guard = test_guard();
         temp_env::with_vars([("KITTY_WINDOW_ID", Some("1")), ("TERM_PROGRAM", Some("kitty"))], || {
             let caps = TerminalCapabilities::detect();
             assert_eq!(caps.images, Some(ImageProtocol::Kitty));
@@ -663,6 +677,7 @@ mod tests {
 
     #[test]
     fn test_detect_capabilities_iterm2() {
+        let _guard = test_guard();
         temp_env::with_vars([("ITERM_SESSION_ID", Some("abc123")), ("TERM_PROGRAM", Some("iTerm.app"))], || {
             let caps = TerminalCapabilities::detect();
             assert_eq!(caps.images, Some(ImageProtocol::Iterm2));
@@ -672,6 +687,7 @@ mod tests {
 
     #[test]
     fn test_detect_capabilities_wezterm() {
+        let _guard = test_guard();
         temp_env::with_vars([("WEZTERM_PANE", Some("0")), ("TERM_PROGRAM", Some("WezTerm"))], || {
             let caps = TerminalCapabilities::detect();
             assert_eq!(caps.images, Some(ImageProtocol::Kitty));
@@ -680,6 +696,7 @@ mod tests {
 
     #[test]
     fn test_detect_capabilities_ghostty() {
+        let _guard = test_guard();
         temp_env::with_vars([("GHOSTTY_RESOURCES_DIR", Some("/tmp")), ("TERM_PROGRAM", Some("ghostty"))], || {
             let caps = TerminalCapabilities::detect();
             assert_eq!(caps.images, Some(ImageProtocol::Kitty));
@@ -688,6 +705,7 @@ mod tests {
 
     #[test]
     fn test_detect_capabilities_unknown() {
+        let _guard = test_guard();
         temp_env::with_vars(
             [
                 ("KITTY_WINDOW_ID", None::<&str>),
@@ -711,6 +729,7 @@ mod tests {
 
     #[test]
     fn test_set_capabilities_overrides_cache() {
+        let _guard = test_guard();
         set_capabilities(TerminalCapabilities {
             images: Some(ImageProtocol::Kitty),
             true_color: true,
@@ -725,6 +744,7 @@ mod tests {
 
     #[test]
     fn test_reset_capabilities_cache() {
+        let _guard = test_guard();
         set_capabilities(TerminalCapabilities { images: None, true_color: false, hyperlinks: false });
         reset_capabilities_cache();
         // After reset, re-detect. Depending on env, images may or may not be available.
@@ -785,6 +805,7 @@ mod tests {
 
     #[test]
     fn test_render_image_no_capabilities_fallback() {
+        let _guard = test_guard();
         set_capabilities(TerminalCapabilities { images: None, true_color: false, hyperlinks: false });
         let dims = ImageDimensions { width_px: 800, height_px: 600 };
         let result = render_image("AAAA", &dims, &ImageRenderOptions::default());
@@ -794,6 +815,7 @@ mod tests {
 
     #[test]
     fn test_render_image_with_kitty_capability() {
+        let _guard = test_guard();
         set_capabilities(TerminalCapabilities {
             images: Some(ImageProtocol::Kitty),
             true_color: true,
@@ -810,6 +832,7 @@ mod tests {
 
     #[test]
     fn test_render_image_with_iterm2_capability() {
+        let _guard = test_guard();
         set_capabilities(TerminalCapabilities {
             images: Some(ImageProtocol::Iterm2),
             true_color: true,

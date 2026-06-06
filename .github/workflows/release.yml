@@ -1,0 +1,177 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  verify:
+    runs-on: ubuntu-22.04
+    outputs:
+      tag: ${{ steps.meta.outputs.tag }}
+      version: ${{ steps.meta.outputs.version }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Validate release tag and workspace version
+        id: meta
+        run: |
+          python3 - <<'PY'
+          import os
+          import pathlib
+          import re
+          import tomllib
+
+          tag = os.environ["GITHUB_REF_NAME"]
+          if not re.fullmatch(r"v\d+\.\d+\.\d+", tag):
+              raise SystemExit(f"Unsupported release tag: {tag}")
+
+          cargo_toml = pathlib.Path("Cargo.toml").read_text(encoding="utf-8")
+          version = tomllib.loads(cargo_toml)["workspace"]["package"]["version"]
+          if version != tag[1:]:
+              raise SystemExit(f"Tag {tag} does not match workspace version {version}")
+
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as fh:
+              fh.write(f"tag={tag}\n")
+              fh.write(f"version={version}\n")
+          PY
+
+      - name: Install stable toolchain
+        run: |
+          rustup toolchain install stable --profile minimal --component rustfmt clippy
+          rustup default stable
+
+      - name: Check formatting
+        run: cargo fmt --all --check
+
+      - name: Run clippy
+        run: cargo clippy --locked --workspace --all-targets --all-features -- -D warnings
+
+      - name: Run workspace tests
+        run: cargo test --locked --workspace
+
+  build:
+    needs: verify
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
+            binary: pi
+          - os: macos-14
+            target: aarch64-apple-darwin
+            binary: pi
+          - os: windows-2022
+            target: x86_64-pc-windows-msvc
+            binary: pi.exe
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Install stable toolchain
+        run: |
+          rustup toolchain install stable --profile minimal
+          rustup default stable
+          rustup target add ${{ matrix.target }}
+
+      - name: Build release binary
+        run: cargo build --locked --release -p pi --target ${{ matrix.target }} --features feat-extensions
+
+      - name: Upload release binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: binary-${{ matrix.target }}
+          path: target/${{ matrix.target }}/release/${{ matrix.binary }}
+          if-no-files-found: error
+
+  publish:
+    needs:
+      - verify
+      - build
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: write
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Download release binaries
+        uses: actions/download-artifact@v4
+        with:
+          path: downloaded
+
+      - name: Assemble release archives and checksums
+        env:
+          RELEASE_TAG: ${{ needs.verify.outputs.tag }}
+        run: |
+          python3 - <<'PY'
+          import hashlib
+          import os
+          import pathlib
+          import shutil
+          import tarfile
+          import zipfile
+
+          tag = os.environ["RELEASE_TAG"]
+          downloaded = pathlib.Path("downloaded")
+          stage_dir = pathlib.Path("stage")
+          dist_dir = pathlib.Path("dist")
+          stage_dir.mkdir(exist_ok=True)
+          dist_dir.mkdir(exist_ok=True)
+
+          targets = [
+              ("x86_64-unknown-linux-gnu", "pi", "tar.gz"),
+              ("aarch64-apple-darwin", "pi", "tar.gz"),
+              ("x86_64-pc-windows-msvc", "pi.exe", "zip"),
+          ]
+
+          assets = []
+          for target, binary_name, archive_type in targets:
+              source = downloaded / f"binary-{target}" / binary_name
+              if not source.exists():
+                  raise SystemExit(f"Missing downloaded binary: {source}")
+
+              stem = f"pi-{tag}-{target}"
+              bundle_dir = stage_dir / stem
+              bundle_dir.mkdir(parents=True, exist_ok=True)
+              shutil.copy2(source, bundle_dir / binary_name)
+              shutil.copy2("README.md", bundle_dir / "README.md")
+              shutil.copy2("LICENSE", bundle_dir / "LICENSE")
+
+              if archive_type == "tar.gz":
+                  asset_path = dist_dir / f"{stem}.tar.gz"
+                  with tarfile.open(asset_path, "w:gz") as tar:
+                      tar.add(bundle_dir, arcname=stem)
+              else:
+                  asset_path = dist_dir / f"{stem}.zip"
+                  with zipfile.ZipFile(asset_path, "w", compression=zipfile.ZIP_DEFLATED) as zf:
+                      for path in sorted(bundle_dir.rglob("*")):
+                          zf.write(path, arcname=path.relative_to(stage_dir))
+
+              assets.append(asset_path)
+
+          checksum_path = dist_dir / "SHA256SUMS"
+          with checksum_path.open("w", encoding="utf-8") as fh:
+              for asset in sorted(assets):
+                  digest = hashlib.sha256(asset.read_bytes()).hexdigest()
+                  fh.write(f"{digest}  {asset.name}\n")
+          PY
+
+      - name: Publish GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ needs.verify.outputs.tag }}
+        run: gh release create "$RELEASE_TAG" dist/* --generate-notes

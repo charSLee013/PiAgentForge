@@ -15,6 +15,23 @@ A production-quality Rust implementation of an AI-powered coding assistant with 
 
 ## Quick Start
 
+### Prebuilt Binaries
+
+GitHub Releases publishes prebuilt archives for the `pi` CLI, so most users do
+not need to build from source:
+
+- Linux: `x86_64-unknown-linux-gnu`
+- macOS: `aarch64-apple-darwin`
+- Windows: `x86_64-pc-windows-msvc`
+
+Download the latest release assets from:
+
+<https://github.com/charSLee013/PiAgentForge/releases>
+
+Official release binaries include the default provider surface plus
+`feat-extensions`. Each release also includes a `SHA256SUMS` file for asset
+verification.
+
 ### Installation
 
 ```bash
@@ -398,6 +415,8 @@ This is a Rust port of the TypeScript-based pi-coding-agent project, reimagined 
 
 ## Links
 
+- **Releases**: <https://github.com/charSLee013/PiAgentForge/releases>
+- **Release process**: See `RELEASING.md`
 - **CLI reference**: `cargo run -q -p pi -- --help`
 - **Issues**: Report bugs and feature requests on GitHub
 - **Discussions**: Join the community for questions and ideas
